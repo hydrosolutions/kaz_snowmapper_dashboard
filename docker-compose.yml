@@ -3,8 +3,8 @@ services:
     build:
       context: .
       dockerfile: ./dashboard/Dockerfile
-    image: mabesa/taj-snowmapper-dashboard:latest
-    container_name: taj-snowmapper-dashboard
+    image: mabesa/kaz-snowmapper-dashboard:latest
+    container_name: kaz-snowmapper-dashboard
     ports:
       - "${PORT}:${PORT}"
     volumes:
@@ -24,4 +24,4 @@ services:
 
 networks:
   default:
-    name: taj_snowmapper_network
+    name: kaz_snowmapper_network

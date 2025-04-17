@@ -46,14 +46,14 @@ msgid "### Variable Controls"
 msgstr ""
 
 #: dashboard/snowmapper.py:854
-msgid "Snow Situation Tajikistan"
+msgid "Snow Situation Kazakhstan"
 msgstr ""
 
 #: dashboard/snowmapper.py:926
 msgid ""
 "\n"
 "    ### About this Dashboard\n"
-"    This dashboard shows the snow situation in Tajikistan.\n"
+"    This dashboard shows the snow situation in Kazakhstan.\n"
 "    Data is updated daily and includes:\n"
 "    - Snow Height (HS) in meters\n"
 "    - Snow Water Equivalent (SWE) in millimeters\n"

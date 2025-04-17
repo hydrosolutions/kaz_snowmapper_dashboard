@@ -1,8 +1,8 @@
-name: Build and Deploy Snowmapper Tajikistan
+name: Build and Deploy Snowmapper Kazakhstan
 
 env:
-  IMAGE_NAME_DASHBOARD: mabesa/taj-snowmapper-dashboard
-  IMAGE_NAME_BACKEND: mabesa/taj-snowmapper-backend
+  IMAGE_NAME_DASHBOARD: mabesa/kaz-snowmapper-dashboard
+  IMAGE_NAME_BACKEND: mabesa/kaz-snowmapper-backend
   IMAGE_TAG: latest
 
 on:
@@ -14,7 +14,7 @@ on:
 jobs:
   build_and_push_backend:
     runs-on: ubuntu-latest
-    name: Build and push backend (data processor) for Snowmapper Tajikistan image
+    name: Build and push backend (data processor) for Snowmapper Kazakhstan image
 
     steps:
       # Checkout the repository
@@ -45,7 +45,7 @@ jobs:
 
   build_and_push_dashboard:
     runs-on: ubuntu-latest
-    name: Build and push dashboard for Snowmapper Tajikistan image
+    name: Build and push dashboard for Snowmapper Kazakhstan image
 
     env:
       DASHBOARD_ENV: aws

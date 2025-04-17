@@ -138,7 +138,7 @@ class SnowDataPipeline:
         # All values in ds_clip smaller than min_threshold are set to 0
         ds_clip[var_name] = ds_clip[var_name].where(ds_clip[var_name] >= min_threshold, 0)
 
-        # Transform to a suitable projected CRS (UTM zone 42N for Tajikistan)
+        # Transform to a suitable projected CRS (UTM zone 42N for Kazakhstan)
         mask_projected = self.mask_gdf.to_crs(CRS.from_epsg(32642))
         mask_buffered = mask_projected.buffer(11000)  # Buffer in meters (10km)
         mask_geographic = mask_buffered.to_crs(CRS.from_epsg(4326))

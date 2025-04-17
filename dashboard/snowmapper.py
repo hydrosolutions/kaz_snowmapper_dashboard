@@ -1,6 +1,6 @@
-# Description: Dashboard for visualizing snow data in Tajikistan.
+# Description: Dashboard for visualizing snow data in Kazakhstan.
 #
-# This script creates a dashboard for visualizing snow data in Tajikistan.
+# This script creates a dashboard for visualizing snow data in Kazakhstan.
 #
 # Useage:
 # To run the dashboard loaclly, run the following command from the dashboard
@@ -874,7 +874,7 @@ controls = pn.bind(get_control_panel, dashboard.param.variable)
 
 # Initialize template
 template = pn.template.BootstrapTemplate(
-    title=_("Snow Situation Tajikistan"),
+    title=_("Snow Situation Kazakhstan"),
     logo=config['paths']['favicon_path'],
     sidebar_width=350,
     header_background="#2B547E",  # Dark blue header
@@ -992,7 +992,7 @@ header = pn.pane.Markdown(
 info_content = pn.Column(
     pn.pane.Markdown(_("""
     ### About this Dashboard
-    This dashboard shows the snow situation in Tajikistan.
+    This dashboard shows the snow situation in Kazakhstan.
     Data is updated daily and includes:
     - Snow Height (HS) in meters
     - Snow Water Equivalent (SWE) in millimeters

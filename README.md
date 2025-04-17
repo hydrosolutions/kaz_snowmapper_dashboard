@@ -1,10 +1,11 @@
-![deploy taj.snowmapper.ch dashboard](https://github.com/hydrosolutions/taj_snowmapper_dashboard/actions/workflows/docker-build-push.yml/badge.svg) [![License](https://img.shields.io/github/license/hydrosolutions/taj_snowmapper_dashboard)](https://github.com/hydrosolutions/taj_snowmapper_dashboard/blob/main/LICENSE) [![Python 3.12](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/release/python-311/) [![Last Commit](https://img.shields.io/github/last-commit/hydrosolutions/taj_snowmapper_dashboard)](https://github.com/hydrosolutions/taj_snowmapper_dashboard/commits/main)
+![deploy kaz.snowmapper.ch dashboard](https://github.com/hydrosolutions/kaz_snowmapper_dashboard/actions/workflows/docker-build-push.yml/badge.svg) [![License](https://img.shields.io/github/license/hydrosolutions/kaz_snowmapper_dashboard)](https://github.com/hydrosolutions/kaz_snowmapper_dashboard/blob/main/LICENSE) [![Python 3.12](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/release/python-311/) [![Last Commit](https://img.shields.io/github/last-commit/hydrosolutions/kaz_snowmapper_dashboard)](https://github.com/hydrosolutions/kaz_snowmapper_dashboard/commits/main)
 
-## Snowmapper Tajikistan
-This repository contains the code for the snowmapper tajikistan dashboard, currently available under [taj.snowmapper.ch](https://taj.snowmapper.ch/snowmapper). The dashboard is a web application that displays snow cover data for Tajikistan. The data is sourced from the [snowmapperForecast](https://github.com/joelfiddes/snowmapperForecast) model implemented by [Joel Fiddes]([@joelfiddes](https://github.com/joelfiddes)).
+## Snowmapper Kazakhstan Dashboard
+This repository contains the code for the snowmapper Kazakhstan dashboard, currently available under [kaz.snowmapper.ch](https://kaz.snowmapper.ch/snowmapper). The dashboard is a web application that displays snow cover data for Kazakhstan. The data is sourced from the [snowmapperForecast](https://github.com/joelfiddes/snowmapperForecast) model implemented by [Joel Fiddes]([@joelfiddes](https://github.com/joelfiddes)).
 
 Below we show a screenshot of the dashboard displaying a forecast of snow heigth:
-![screenshot](static/Screenshot_tajsnowmapper.png)
+<TODO: add screenshot>
+#![screenshot](static/Screenshot_kazsnowmapper.png)
 
 ## Architecture
 This project comes in 2 components: A data processor and a web interface. The data processor is a python script that downloads the latest snow data from the TopoPyScale and FSM model and, after pre-processing, stores it in local files optimized for display. The web interface is a dashboard that displays the snow-related data on a map. Both components are run in a docker container.
@@ -39,7 +40,7 @@ git clone <repo-url>
 
 Change to the repository directory
 ```bash
-cd taj_snowmapper_dashboard
+cd kaz_snowmapper_dashboard
 ```
 
 #### Set environment variables
@@ -62,7 +63,7 @@ This script will thake a few minutes to run. You can see if it was successful by
 
 After editing the dashboard to run on your preferred url, you can test-run the web interface with the following docker pull and docker compose commands:
 ```bash
-docker pull mabesa/taj-snowmapper-dashboard
+docker pull mabesa/kaz-snowmapper-dashboard
 docker compose up -d
 ```
 
@@ -74,12 +75,12 @@ crontab -e
 
 Add the following line to the crontab file to periodically run the data processor at 21:09 UTC time which is around 2 o'clock in the moring in Dushanbe.
 ```bash
-9 21 * * * bash ~/taj_snowmapper_dashboard/run_data_processor.sh >> ~/taj_snowmapper_dashboard/logs/crontab_processor.log 2>&1
+9 21 * * * bash ~/kaz_snowmapper_dashboard/run_data_processor.sh >> ~/kaz_snowmapper_dashboard/logs/crontab_processor.log 2>&1
 ```
 
 And add the following line to the crontab file to periodically restart the web interface at 2:00 UTC
 ```bash
-9 22 * * * docker restart taj-snowmapper-dashboard >> ~/taj_snowmapper_dashboard/logs/crontab_dashboard.log 2>&1
+9 22 * * * docker restart kaz-snowmapper-dashboard >> ~/kaz_snowmapper_dashboard/logs/crontab_dashboard.log 2>&1
 ```
 
 

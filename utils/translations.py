@@ -1,6 +1,6 @@
 TRANSLATIONS = {
     'en': {
-        'title': 'Tajikistan Snowmapper Dashboard',
+        'title': 'Kazakhstan Snowmapper Dashboard',
         'variable_select': 'Select Variable',
         'date_select': 'Select Date',
         'language': 'Language',
@@ -21,7 +21,7 @@ TRANSLATIONS = {
         'unit_m3s': 'm³/s'
     },
     'ru': {
-        'title': 'Панель мониторинга снега Таджикистана',
+        'title': 'Панель мониторинга снега Казахстана',
         'variable_select': 'Select Variable ru',
         'date_select': 'Select Date ru',
         'language': 'Language ru',
