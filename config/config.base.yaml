@@ -1,0 +1,115 @@
+# Base configuration shared between environments
+
+
+# -- Data processor -- #
+# SSH connection settings for data source
+ssh:
+  hostname: "${SSH_HOST}"
+  username: "${SSH_USER}"
+  key_path: "${SSH_KEY_PATH}"
+  remote_path: "${REMOTE_PATH}"
+
+# General settings
+# Looking back <retention_days> days from today
+retention_days: 3
+# How long we keep snow data in the cache folder
+cache:
+  max_age_hours: 90
+  max_size_mb: 1000
+
+projections:
+  input: "EPSG:4326"    # WGS84
+  output: "EPSG:3857"   # Web Mercator
+  bounds:
+    # Original WGS84 bounds
+    wgs84:
+      min_lat: 36.5
+      max_lat: 41.5
+      min_lon: 67.0
+      max_lon: 75.0
+    # Web Mercator bounds (easting/northing in meters)
+    web_mercator:
+      min_x: 7457442
+      max_x: 8388783
+      min_y: 4378132
+      max_y: 5071560
+
+variables:
+  - hs
+  - swe
+  #- rof
+
+# Configuring the data smoothing and upscaling
+visualization:
+  # Thresholds for the data, neglecting values below these thresholds
+  min_hs_threshold: 0.02  # in m
+  min_swe_threshold: 20  # in mm
+  min_rof_threshold: 20  # in mm
+  # Smoothing & upscaling factor for the data
+  enable_optimization: true
+  smoothing_factor: 1.0
+  upscale_factor: 2.0
+
+
+
+
+# -- Dashboard -- #
+# Map settings
+map:
+  center_lat: 38.861034
+  center_lon: 71.276093
+  min_zoom: 6
+  max_zoom: 12
+  initial_zoom: 7
+
+# Data variables configuration
+variables:
+  hs:
+    name: "snow_height"
+    figure_title: "Высота снега"  # "Snow Height"
+    file_prefix: "HS"
+    widget_short_name: "HS"
+    units: "м"  #"m"
+    # For 'time series' plot
+    colormap: ['#cdffcd', '#99f0b2', '#53bd9f', '#3296b4', '#0670b0', '#054f8c', '#610432', '#4d020f']
+    color_levels: [0.001, 0.2, 0.5, 0.8, 1.2, 2.0, 3.0, 4.0, 7.0]  # in m
+    # For 'new snow' plot
+    new_snow_color_levels: [0.001, 0.1, 0.2, 0.3, 0.4, 0.6, 0.8, 1.0, 3.0]  # in m
+    new_snow_colormap: ['#cdffcd', '#99f0b2', '#53bd9f', '#3296b4', '#0670b0', '#054f8c', '#610432', '#4d020f']
+    min_value: 0
+    max_value: 10
+  swe:
+    name: "snow_water_equivalent"
+    figure_title: "Снегозапасы"  # "Snow Water Equivalent"
+    file_prefix: "SWE"
+    widget_short_name: "SWE"
+    units: "мм"  # "mm"
+    # For 'time series' plot
+    colormap: ['#f7fbff', '#deebf7', '#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#084594']  # "viridis_r"
+    color_levels: [0.001, 30, 60, 90, 150, 300, 500, 700, 1000]  # in mm
+    # For 'new snow' plot
+    new_snow_color_levels: [0.001, 100, 200, 300, 400, 600, 800, 1000, 3000]  # in mm
+    new_snow_colormap: ['#cdffcd', '#99f0b2', '#53bd9f', '#3296b4', '#0670b0', '#054f8c', '#610432', '#4d020f']
+    min_value: 0
+    max_value: 200
+  #rof:
+  #  name: "runoff"
+  #  figure_title: "Snowmelt"
+  #  file_prefix: "ROF"
+  #  widget_short_name: "SM"
+  #  units: "mm"
+  #  colormap: "YlOrRd"
+  #  color_levels: [0.001, 30, 60, 90, 150, 300, 500, 700, 1000]  # in mm
+  #  min_value: 0
+  #  max_value: 4
+
+# Dashboard settings
+dashboard:
+  update_interval: 300  # seconds
+  default_language: "ru"
+  default_opacity: 0.7
+  tile_provider: "OpenStreetMap"
+  day_slider_min: -2  # Number of days to look back from today
+  day_slider_max: 4  # Number of days to look forward from today
+
+

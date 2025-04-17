@@ -1,0 +1,29 @@
+# Ignore pycache and cpy
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore virtualenv
+venv/
+
+# Ignore IDE files
+.idea/
+.vscode/
+.DS_Store
+
+# Ignore configuration files, keys and secrets
+.env
+*.pem
+
+# Ignore data folder
+data/
+*.log
+
+# Ignore helpers folder
+helpers/
+*.ipynb
+dashboard/Dockerfile copy 2
+/static/logos/Z
+*.pptx
+locales/ru/LC_MESSAGES/snowmapper copy.po

@@ -1,0 +1,21 @@
+# Local development specific configuration
+
+# Import base configuration
+imports:
+  - config.base.yaml
+
+# Paths are relative to the project root directory
+paths:
+  input_dir: "../data/input"
+  output_dir: "../data/processed"
+  cache_dir: "../data/cache"
+  mask_path: "static/OSMB-Taj-country-borders.geojson"
+  favicon_path: "../static/snowmapper_logo_version0.png"
+
+# Logging configuration
+logging:
+  level: "DEBUG"
+  file: "logs/dashboard.log"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  max_size_mb: 10
+  backup_count: 5

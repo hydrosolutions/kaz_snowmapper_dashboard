@@ -1,0 +1,27 @@
+services:
+  dashboard:
+    build:
+      context: .
+      dockerfile: ./dashboard/Dockerfile
+    image: mabesa/taj-snowmapper-dashboard:latest
+    container_name: taj-snowmapper-dashboard
+    ports:
+      - "${PORT}:${PORT}"
+    volumes:
+      - ./data:/app/data
+      - ./config:/app/config
+      - ./static:/app/static
+    env_file:
+      - .env
+    environment:
+      - DASHBOARD_ENV=aws
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  default:
+    name: taj_snowmapper_network
