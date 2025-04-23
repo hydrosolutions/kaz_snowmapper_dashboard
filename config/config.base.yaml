@@ -101,8 +101,7 @@ variables:
     colormap: "YlOrRd"
     color_levels: [0.001, 30, 60, 90, 150, 300, 500, 700, 1000]  # in mm
     new_rof_color_levels: [0.001, 100, 200, 300, 400, 600, 800, 1000, 3000]  # in mm
-    new_rof_colo
-    rmap: ['#cdffcd', '#99f0b2', '#53bd9f', '#3296b4', '#0670b0', '#054f8c', '#610432', '#4d020f']
+    new_rof_colormap: ['#cdffcd', '#99f0b2', '#53bd9f', '#3296b4', '#0670b0', '#054f8c', '#610432', '#4d020f']
     min_value: 0
     max_value: 4
 
