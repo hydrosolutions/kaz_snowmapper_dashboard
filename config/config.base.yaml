@@ -34,6 +34,12 @@ projections:
       min_y: 6764400
       max_y: 6955831
 
+climatology:
+  # sub-dir under remote_path to the climatology files on the remote server
+  climatology_dir: "tables"
+  climate_file: "2.0_climate.txt"
+  current_file: "2.0_current.txt"
+
 variables:
   - hs
   - swe

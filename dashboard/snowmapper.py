@@ -653,6 +653,9 @@ class SnowMapDashboard(param.Parameterized):
         step=0.1,
         doc="Opacity of the overlay layer"
     )
+    # Climatology variable parameter for climatology plot
+    climatology_variable = param.Selector(default='SWE', objects=['SWE', 'HS', 'ROF'])
+    
 
     def __init__(self, data_dir: Path, config: dict, **params):
         self.config = config
@@ -790,6 +793,83 @@ class SnowMapDashboard(param.Parameterized):
         var_config = self.config['variables'][var_name]
         return f"{var_config['widget_short_name']} ({var_config['units']})"
 
+    def read_climatology_data(self):
+        """Read climatology data from the configured file."""
+        try:
+            # Construct path matching the pattern in TextFileDownloader
+            climate_path = Path(self.config['paths']['input_dir']) / self.config['climatology']['climate_file']
+            
+            if not climate_path.exists():
+                self.logger.error(f"Climatology file not found: {climate_path}")
+                return None
+                
+            df = pd.read_csv(climate_path, sep='\t', parse_dates=['date'])
+            return df
+        except Exception as e:
+            self.logger.error(f"Error reading climatology data: {e}")
+            return None
+    
+    @param.depends('climatology_variable')
+    def climatology_view(self):
+        """Create a climatology visualization."""
+        df = self.read_climatology_data()
+        if df is None:
+            return hv.Text(0, 0, "Error: Climatology data not available")
+        
+        # Extract columns for the selected variable
+        variable = self.climatology_variable
+        q5_col = f'Q5_{variable}'
+        q50_col = f'Q50_{variable}'
+        q95_col = f'Q95_{variable}'
+        
+        if not all(col in df.columns for col in [q5_col, q50_col, q95_col]):
+            return hv.Text(0, 0, f"Error: Required columns for {variable} not found in data")
+        
+        # Get variable label and units
+        var_labels = {
+            'SWE': 'Snow Water Equivalent (mm)',
+            'HS': 'Snow Height (m)',
+            'ROF': 'Runoff (mm/day)'
+        }
+        title = var_labels.get(variable, variable)
+        
+        # Convert date to datetime if needed
+        if not pd.api.types.is_datetime64_any_dtype(df['date']):
+            df['date'] = pd.to_datetime(df['date'])
+            
+        # Format date as month-day for x-axis
+        df['month_day'] = df['date'].dt.strftime('%b-%d')
+        
+        # Create the plot
+        shaded_area = df.hvplot.area(
+            x='month_day', 
+            y=q5_col, 
+            y2=q95_col,
+            color='lightblue',
+            alpha=0.5,
+            legend=False
+        )
+        
+        median_line = df.hvplot.line(
+            x='month_day', 
+            y=q50_col,
+            color='blue',
+            line_width=2,
+            title=f"{title} - Climatology"
+        )
+        
+        plot = (shaded_area * median_line).opts(
+            width=800,
+            height=400,
+            xlabel='Date',
+            ylabel=title,
+            toolbar='above',
+            tools=['hover'],
+            fontsize={'title': 14, 'labels': 12, 'xticks': 10, 'yticks': 10}
+        )
+        
+        return plot
+
 
 # Initialize the dashboard with proper variable handling
 dashboard = SnowMapDashboard(
@@ -870,7 +950,27 @@ def get_control_panel(variable):
     return base_controls
 
 # Create the dashboard layout with dynamic controls
-controls = pn.bind(get_control_panel, dashboard.param.variable)
+map_controls = pn.bind(get_control_panel, dashboard.param.variable)
+
+# Climatology sidebar controls
+# Create climatology variable selector
+climatology_var_selector = pn.widgets.Select(
+    name=_('Variable'),
+    options={
+        _('Snow Water Equivalent'): 'SWE',
+        _('Snow Height'): 'HS',
+        _('Runoff'): 'ROF'
+    },
+    value='SWE'
+)
+
+# Link selector to dashboard
+climatology_var_selector.link(dashboard, value='climatology_variable')
+
+climatology_controls = pn.Column(
+    pn.pane.Markdown(_("### Climatology Controls")),
+    climatology_var_selector
+)
 
 # Initialize template
 template = pn.template.BootstrapTemplate(
@@ -881,10 +981,7 @@ template = pn.template.BootstrapTemplate(
     favicon=config['paths']['favicon_path']
 )
 
-# Add controls to the sidebar
-template.sidebar.append(
-    controls,
-)
+
 '''
 # Add spacer to push logos to bottom
 template.sidebar.append(pn.Spacer(height=80))
@@ -958,11 +1055,71 @@ map_pane = pn.pane.HoloViews(
     min_height=300,
 )
 
+# Create a climatology pane
+climatology_pane = pn.pane.HoloViews(
+    dashboard.climatology_view,
+    sizing_mode='stretch_both',
+    min_height=300,
+)
+
+# Creating tabs 
+map_tab = pn.Column(
+    dashboard.data_freshness_manager.get_warning_component(),
+    map_pane,
+    sizing_mode='stretch_both',
+    margin=10,
+    css_classes=['main-content']
+)
+climatology_tab = pn.Column(
+    dashboard.data_freshness_manager.get_warning_component(),
+    climatology_pane,
+    sizing_mode='stretch_both',
+    margin=10,
+    css_classes=['main-content']
+)
+info_tab = pn.Column(
+    pn.pane.Markdown("## About Snow Monitoring"),
+    pn.pane.Markdown("""
+    This dashboard shows snow conditions in Zhambay basin in Northern Kazakhstan. 
+                     
+    The displayed data is based on simulation results from the SnowMapper model developed by the Swiss Research Institute for Snow and Avalanches. 
+    
+    This dashboard was developed with funding by the Swiss Federal Agency for Development and Cooperation (SDC) under the project SAPPHIRE Central Asia. 
+    """),
+    sizing_mode='stretch_both',
+    margin=20
+)
+# Create tabs
+tabs = pn.Tabs(
+    ('Map', map_tab),
+    ('Climatology', climatology_tab),
+    ('Info', info_tab),
+    sizing_mode='stretch_both',
+)
+
+# Function to get appropriate sidebar content based on active tab
+def get_sidebar_content(active_tab):
+    if active_tab == 0:  # Map tab
+        return map_controls
+    elif active_tab == 1:  # Climatology tab
+        return climatology_controls
+    else:  # Info tab
+        return pn.pane.Markdown("")  # Empty sidebar for Info tab
+
+# Create dynamic sidebar content
+sidebar_content = pn.bind(get_sidebar_content, tabs.param.active)
+
+# Add controls to the sidebar
+template.sidebar.append(
+    sidebar_content,
+)
+
 # Add main view to the main area
 template.main.append(
     pn.Column(
-        dashboard.data_freshness_manager.get_warning_component(),
-        map_pane,
+        #dashboard.data_freshness_manager.get_warning_component(),
+        #map_pane,
+        tabs, 
         sizing_mode='stretch_both',
         margin=10,
         css_classes=['main-content']

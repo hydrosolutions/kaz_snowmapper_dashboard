@@ -50,15 +50,18 @@ from utils.config import ConfigLoader
 from utils.logging import LoggerSetup
 from utils.data_manager import DataManager
 from utils.data_checker import DataChecker
+from utils.text_file_downloader import TextFileDownloader
 
 
+class EnvironmentSetup:
+    """Handles environment setup including configuration loading and logging."""
 
-class SnowDataPipeline:
-    """Integrated pipeline for checking, downloading, and processing snow data."""
-
-    def __init__(self):
-        """Initialize pipeline with configuration from environment."""
-        # Setup environment
+    def __init__(self, env: str = None):
+        """Initialize environment setup.
+        
+        Args:
+            env: Environment name ('local' or 'aws'). If None, reads from DASHBOARD_ENV env var.
+        """
         self.env = os.getenv('DASHBOARD_ENV', 'local')
 
         # Determine config file paths based on project structure
@@ -76,16 +79,70 @@ class SnowDataPipeline:
         # Initialize configuration
         self.config_loader = ConfigLoader()
         self.config = self.config_loader.load_config(self.env)
-
+        
         # Setup logging
         self.logger_setup = LoggerSetup(self.config)
         self.logger = self.logger_setup.setup()
+        
+        # Create necessary directories
+        self._create_directories()
+        
+        self.logger.debug(f"Environment initialized in {self.env} mode")
+        
+    def _create_directories(self):
+        """Create necessary directories based on configuration."""
+        for path_key in ['input_dir', 'output_dir', 'cache_dir']:
+            if path_key in self.config['paths']:
+                Path(self.config['paths'][path_key]).mkdir(parents=True, exist_ok=True)
+                
+    def get_config(self) -> Dict[str, Any]:
+        """Get the loaded configuration."""
+        return self.config
+    
+    def get_logger(self, name: str = None) -> logging.Logger:
+        """Get a logger with the specified name."""
+        if name:
+            return logging.getLogger(f'snowmapper.{name}')
+        return self.logger
 
-        # Print debugging info
-        self.logger.debug(f"Pipeline initialized in {self.env} environment")
-        self.logger.debug(f"Config: {self.config}")
-        #print(f"Pipeline initialized in {self.env} environment")
-        #print(f"Config: {self.config}")
+
+class TextFilePipeline:
+    """Pipeline for downloading and processing text files from the remote server."""
+    
+    def __init__(self, config: Dict):
+        self.logger = logging.getLogger('snowmapper.text_pipeline')
+        self.config = config
+        self.output_dir = Path(self.config['paths']['input_dir'])
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        
+        self.downloader = TextFileDownloader(config, self.output_dir)
+    
+    async def run(self) -> Dict:
+        """Run the text file pipeline to download and process files."""
+        self.logger.info("Starting text file pipeline...")
+        
+        # Download the text files
+        download_result = await self.downloader.download_files()
+        
+        if download_result['downloaded'] > 0:
+            self.logger.info(f"Successfully downloaded {download_result['downloaded']} text files")
+        
+        if download_result['failed']:
+            self.logger.error(f"Failed to download {len(download_result['failed'])} text files: {download_result['failed']}")
+        
+        return download_result
+
+
+class SnowDataPipeline:
+    """Integrated pipeline for checking, downloading, and processing snow data."""
+
+    def __init__(self, env_setup=None):
+        """Initialize pipeline with configuration from environment."""
+        if env_setup is None:
+            env_setup = EnvironmentSetup()
+
+        self.config = env_setup.get_config()
+        self.logger = env_setup.get_logger('netcdf_pipeline')
 
         # Initialize components
         self.data_manager = DataManager(self.config)
@@ -103,7 +160,6 @@ class SnowDataPipeline:
         mask_path = project_root / self.config['paths']['mask_path']
         self.mask_gdf = gpd.read_file(mask_path)
         self.bounds = self.mask_gdf.total_bounds
-
 
     def _process_single_file(self, ds: xr.Dataset, var_name: str) -> xr.Dataset:
         """
@@ -661,13 +717,54 @@ class SnowDataPipeline:
             self.logger.error(f"Error deleting old files: {e}")
             raise
 
+
+async def run_text_file_pipeline(config: Dict) -> Dict:
+    """Run the text file pipeline with the given configuration."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    logger = logging.getLogger('snowmapper.text_pipeline.main')
+    
+    try:
+        pipeline = TextFilePipeline(config)
+        logger.info("Starting text file download pipeline...")
+        result = await pipeline.run()
+        
+        logger.info(f"Text file pipeline completed: "
+                   f"Downloaded {result['downloaded']} files, "
+                   f"Failed {len(result['failed'])} files")
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error in text file pipeline: {e}")
+        raise
+
+
 async def main():
     """Main function to run the pipeline."""
     try:
-        pipeline = SnowDataPipeline()
+        # Setting up the environment
+        env_setup = EnvironmentSetup()
+        config = env_setup.get_config()
+        logger = env_setup.get_logger('main')
+
+        logger.info("Starting data processing pipelines...")
+        
+        # Process text files with snow climatology
+        text_pipeline = TextFilePipeline(config)
+        text_result = await text_pipeline.run()
+        logger.info(f"Text pipeline completed: Downloaded {text_result['downloaded']} files")
+
+        # Process netCDF files
+        pipeline = SnowDataPipeline(env_setup)
         for var_name in pipeline.data_manager.VARIABLES:
             await pipeline.process_variable(var_name)
         pipeline.delete_old_files()
+
+        logger.info("Data processing pipelines completed successfully")
+
     except Exception as e:
         logging.error(f"Pipeline failed: {e}")
         raise
