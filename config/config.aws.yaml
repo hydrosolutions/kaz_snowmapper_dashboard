@@ -9,7 +9,7 @@ paths:
   input_dir: "/app/data/input"
   output_dir: "/app/data/processed"
   cache_dir: "/app/data/cache"
-  mask_path: "/app/static/OSMB-Taj-country-borders.geojson"
+  mask_path: "/app/static/zhabay_watershed_outline.geojson"
   favicon_path: "/app/static/snowmapper_logo_version0.png"
 
 # Logging configuration

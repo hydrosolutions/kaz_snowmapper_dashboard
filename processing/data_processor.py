@@ -29,6 +29,7 @@ import xarray as xr
 import geopandas as gpd
 from shapely.geometry import box
 import zarr
+from numcodecs import Blosc
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, Any
@@ -597,13 +598,14 @@ class SnowDataPipeline:
         })
 
         # Set proper encoding
-        encoding = {}
-        compressor = zarr.Blosc(cname='lz4', clevel=5, shuffle=1)
+        compressor = Blosc(cname='lz4', clevel=5, shuffle=1)
+        self.logger.debug(f"Compressor: {compressor}")
 
         # Encode CRS (scalar variable)
+        encoding = {}
         encoding['crs'] = {
             'chunks': None,  # Scalar variable
-            'compressor': compressor
+            'compressor': compressor, 
         }
 
         # Encode main data variables
@@ -611,17 +613,17 @@ class SnowDataPipeline:
             if var in ds_fixed.data_vars:
                 encoding[var] = {
                     'chunks': (1, 500, 500),  # time, lat, lon
-                    'compressor': compressor
+                    'compressor': compressor 
                 }
 
         # Encode coordinates
         encoding.update({
-            'x': {'chunks': -1, 'compressor': compressor},  # Store as single chunk
-            'y': {'chunks': -1, 'compressor': compressor},  # Store as single chunk
-            'lon': {'chunks': -1, 'compressor': compressor},
-            'lat': {'chunks': -1, 'compressor': compressor},
-            'time': {'chunks': -1, 'compressor': compressor},
-            'region': {'chunks': -1, 'compressor': compressor}
+            'x': {'chunks': -1, 'compressor': compressor },  # Store as single chunk
+            'y': {'chunks': -1, 'compressor': compressor },  # Store as single chunk
+            'lon': {'chunks': -1, 'compressor': compressor },
+            'lat': {'chunks': -1, 'compressor': compressor },
+            'time': {'chunks': -1, 'compressor': compressor },
+            'region': {'chunks': -1, 'compressor': compressor }
         })
 
         # Save to zarr format
