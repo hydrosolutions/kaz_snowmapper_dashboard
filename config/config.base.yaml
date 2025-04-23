@@ -24,14 +24,14 @@ projections:
     # Original WGS84 bounds
     wgs84:
       min_lat: 51.8
-      max_lat: 52.9
+      max_lat: 52.7
       min_lon: 67.6
       max_lon: 69.4
     # Web Mercator bounds (easting/northing in meters)
     web_mercator:
       min_x: 7536125
-      max_x: 7716473
-      min_y: 6764413
+      max_x: 7716470
+      min_y: 6764400
       max_y: 6955831
 
 variables:
@@ -97,9 +97,12 @@ variables:
     figure_title: "Runoff"
     file_prefix: "ROF"
     widget_short_name: "SM"
-    units: "mm"
+    units: "мм"
     colormap: "YlOrRd"
     color_levels: [0.001, 30, 60, 90, 150, 300, 500, 700, 1000]  # in mm
+    new_rof_color_levels: [0.001, 100, 200, 300, 400, 600, 800, 1000, 3000]  # in mm
+    new_rof_colo
+    rmap: ['#cdffcd', '#99f0b2', '#53bd9f', '#3296b4', '#0670b0', '#054f8c', '#610432', '#4d020f']
     min_value: 0
     max_value: 4
 

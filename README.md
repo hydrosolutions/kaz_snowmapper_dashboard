@@ -43,6 +43,16 @@ Change to the repository directory
 cd kaz_snowmapper_dashboard
 ```
 
+#### Install dependencies
+Install the required dependencies for dashboard & the data processor and create the conda environment. Note that we use conda to install the core geospatial libraries and their dependencies. From the project root, run: 
+```bash
+conda env create -f requirements.yml
+```
+Then activate the conda environment with: 
+```bash
+conda activate mcass_kaz
+```
+
 #### Set environment variables
 Edit the `.env` file and set the required environment variables.
 ```bash
