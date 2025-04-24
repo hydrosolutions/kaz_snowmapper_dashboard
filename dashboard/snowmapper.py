@@ -36,6 +36,7 @@ from shapely.validation import make_valid
 import spatialpandas as spd
 import hvplot.pandas
 from bokeh.models.tickers import FixedTicker
+from bokeh.models import DatetimeTickFormatter
 import pyproj
 
 import gettext
@@ -107,7 +108,10 @@ _ = loc.gettext
 MAP_COLOR_SCALE_NEW_SNOW = [0.1, 10.0, 20.0, 30.0, 40.0, 60.0, 80.0, 100.0]  # in cm
 MAP_COLOR_SCALE_HS = [0.1, 20.0, 50.0, 80.0, 120.0, 200.0, 300.0, 400.0]  # in cm
 
-
+BASE_COLOR_VLIGHT = '#b3c3cb'
+BASE_COLOR_LIGHT = '#78a3b0'
+BASE_COLOR_MEDIUM = '#4e6f7e'
+BASE_COLOR_DARK = '#1e383f'
 
 # Add this before creating your template
 def remove_bokeh_logo(plot, element):
@@ -264,8 +268,8 @@ class SnowMapViewer:
             # Set map bounds from config
             return tiles.opts(
                 hooks=[remove_bokeh_logo],
-                width=1200,  # Allow width to adjust to container
-                height=800,  # Allow height to adjust to container
+                #width=1200,  # Allow width to adjust to container
+                #height=800,  # Allow height to adjust to container
                 xaxis=None,  # Remove x axis
                 yaxis=None,  # Remove y axis
                 active_tools=['pan', 'wheel_zoom'],
@@ -273,6 +277,9 @@ class SnowMapViewer:
                 xlim=(self.bounds['min_x'], self.bounds['max_x']),
                 ylim=(self.bounds['min_y'], self.bounds['max_y']),
                 projection=crs.GOOGLE_MERCATOR,
+                frame_width=800,
+                frame_height=500,
+                #sizing_mode='scale_width',
                 aspect='equal',
             )
 
@@ -472,9 +479,6 @@ class SnowMapViewer:
             line_color=None,
             line_width=0,
             alpha=opacity,
-            width=325,
-            height=325,
-            #tools=['hover']
         )
 
         self.logger.debug(f"Contours created successfully")
@@ -615,16 +619,13 @@ class SnowMapViewer:
             # Combine base map with raster
             return (map_view * contours * country_outline).opts(
                 hooks=[remove_bokeh_logo],
-                width=1200,
-                height=800,
-                #xaxis=None,
-                #yaxis=None,
+                responsive=True, 
                 active_tools=['pan', 'wheel_zoom'],
                 scalebar=True,
                 xlim=(self.bounds['min_x'], self.bounds['max_x']),
                 ylim=(self.bounds['min_y'], self.bounds['max_y']),
                 projection=crs.GOOGLE_MERCATOR,
-                aspect='equal',
+                aspect=1.0,
             )
 
         except Exception as e:
@@ -837,35 +838,39 @@ class SnowMapDashboard(param.Parameterized):
         if not pd.api.types.is_datetime64_any_dtype(df['date']):
             df['date'] = pd.to_datetime(df['date'])
             
-        # Format date as month-day for x-axis
-        df['month_day'] = df['date'].dt.strftime('%b-%d')
-        
         # Create the plot
         shaded_area = df.hvplot.area(
-            x='month_day', 
+            x='date', 
             y=q5_col, 
             y2=q95_col,
-            color='lightblue',
-            alpha=0.5,
+            color=BASE_COLOR_VLIGHT,
+            alpha=0.2,
+            line_width=0,
             legend=False
         )
         
         median_line = df.hvplot.line(
-            x='month_day', 
+            x='date', 
             y=q50_col,
-            color='blue',
+            color=BASE_COLOR_LIGHT,
             line_width=2,
             title=f"{title} - Climatology"
         )
         
         plot = (shaded_area * median_line).opts(
-            width=800,
-            height=400,
-            xlabel='Date',
+            xlabel='date',
             ylabel=title,
             toolbar='above',
             tools=['hover'],
-            fontsize={'title': 14, 'labels': 12, 'xticks': 10, 'yticks': 10}
+            fontsize={'title': 14, 'labels': 12, 'xticks': 10, 'yticks': 10}, 
+            hooks=[remove_bokeh_logo],
+            xformatter=DatetimeTickFormatter(
+                months="%b",
+                days="%b %d",
+                #hours="%b %d %H:%M"
+            ),
+            xticks=None,  # Let Bokeh determine the optimal tick positions
+            xrotation=45
         )
         
         return plot
@@ -977,7 +982,7 @@ template = pn.template.BootstrapTemplate(
     title=_("Snow Situation Kazakhstan"),
     logo=config['paths']['favicon_path'],
     sidebar_width=350,
-    header_background="#2B547E",  # Dark blue header
+    header_background=BASE_COLOR_MEDIUM, 
     favicon=config['paths']['favicon_path']
 )
 
@@ -1032,34 +1037,55 @@ template.config.raw_css.append("""
 .bk-root {
     width: 100%;
     height: 100%;
+    max-width: 100wv;  /* Set max width to 100% of viewport width */
+    max-height: 100vh; /* Set max height to 100% of viewport height */
+    overflow: hidden;  /* Hide overflow */
 }
 
 .main-content {
     height: calc(100vh - 50px);
     width: 100%;
+    max-width: 100%;
     padding: 0 !important;
     margin: 0 !important;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
 }
 
 .bk-root .bk {
     flex-grow: 1;
+    max-width: 100%;
+}
+                               
+.bk-root .bk-Plot {
+    flex-grow: 1;
+    max-width: 100%;
+    max-height: 100%;
+    overflow: hidden;
 }
 """)
 
 # Create map pane to handle map sizing
 map_pane = pn.pane.HoloViews(
     dashboard.view,
-    sizing_mode='stretch_both',
+    #sizing_mode='stretch_both',
+    #min_height=300,
+    sizing_mode='scale_width',
+    width_policy='max',
     min_height=300,
+    #max_width=800, 
 )
 
 # Create a climatology pane
 climatology_pane = pn.pane.HoloViews(
     dashboard.climatology_view,
-    sizing_mode='stretch_both',
+    #sizing_mode='stretch_both',
+    #min_height=300,
+    sizing_mode='scale_width',
+    width_policy='max',
     min_height=300,
+    #max_width=800,
 )
 
 # Creating tabs 
@@ -1183,12 +1209,12 @@ info_button.on_click(toggle_info)
 template.header.append(
     pn.Row(
         header,
-        info_button,
+        #info_button,
         sizing_mode='stretch_width'
     )
 )
 
-template.main.append(info_content)
+#template.main.append(info_content)
 
 
 # Make the dashboard servable
