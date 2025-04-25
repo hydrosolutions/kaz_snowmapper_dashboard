@@ -809,6 +809,22 @@ class SnowMapDashboard(param.Parameterized):
         except Exception as e:
             self.logger.error(f"Error reading climatology data: {e}")
             return None
+        
+    def read_current_data(self): 
+        """Read current data from the configured file."""
+        try: 
+            # Construct path matching the pattern in TextFileDownloader
+            current_path = Path(self.config['paths']['input_dir']) / self.config['climatology']['current_file']
+            
+            if not current_path.exists():
+                self.logger.error(f"Current file not found: {current_path}")
+                return None
+                
+            df = pd.read_csv(current_path, sep='\t', parse_dates=['date'])
+            return df
+        except Exception as e:
+            self.logger.error(f"Error reading current data: {e}")
+            return None
     
     @param.depends('climatology_variable')
     def climatology_view(self):
@@ -816,6 +832,10 @@ class SnowMapDashboard(param.Parameterized):
         df = self.read_climatology_data()
         if df is None:
             return hv.Text(0, 0, "Error: Climatology data not available")
+        
+        dfc = self.read_current_data()
+        if dfc is None:
+            return hv.Text(0, 0, "Error: Current data not available")
         
         # Extract columns for the selected variable
         variable = self.climatology_variable
@@ -837,6 +857,12 @@ class SnowMapDashboard(param.Parameterized):
         # Convert date to datetime if needed
         if not pd.api.types.is_datetime64_any_dtype(df['date']):
             df['date'] = pd.to_datetime(df['date'])
+        if not pd.api.types.is_datetime64_any_dtype(dfc['date']):
+            dfc['date'] = pd.to_datetime(dfc['date'])
+
+        # Separate dfc into 2 data frames
+        #dff = dfc[dfc['FC']==True, ]
+        #dfc = dfc[dfc['FC']==False, ]
             
         # Create the plot
         shaded_area = df.hvplot.area(
@@ -856,8 +882,24 @@ class SnowMapDashboard(param.Parameterized):
             line_width=2,
             title=f"{title} - Climatology"
         )
+
+        current_line = dfc.hvplot.line(
+            x='date', 
+            y=q50_col,
+            color=BASE_COLOR_DARK,
+            line_width=2,
+            title=f"{title} - Current"
+        )
+
+        #forecast_line = dff.hvplot.line(
+        #    x='date', 
+        #    y=q50_col,
+        #    color='red',
+        #    line_width=2,
+        #    title=f"{title} - Forecast"
+        #)
         
-        plot = (shaded_area * median_line).opts(
+        plot = (shaded_area * median_line * current_line).opts(
             xlabel='date',
             ylabel=title,
             toolbar='above',
