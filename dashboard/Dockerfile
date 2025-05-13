@@ -7,8 +7,8 @@ WORKDIR /app
 # Install system dependencies required for GDAL and other geospatial libraries
 RUN apt-get update && apt-get install -y \
     build-essential \
-    libgdal-dev=3.10.3+dfsg-1~bpo11+1 \
-    gdal-bin=3.10.3+dfsg-1~bpo11+1 \
+    libgdal-dev \
+    gdal-bin \
     libgeos-dev \
     libproj-dev \
     curl \
