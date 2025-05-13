@@ -826,6 +826,27 @@ class SnowMapDashboard(param.Parameterized):
             self.logger.error(f"Error reading current data: {e}")
             return None
     
+    def calculate_rate_of_change(self, df: pd.DataFrame, variable: str) -> pd.DataFrame:
+        """Calculate the rate of change for a given variable."""
+        try:
+            # Ensure the DataFrame is sorted by date
+            df = df.sort_values(by='date')
+
+            # Calculate the rate of change using the diff() method
+            rate_of_change = df[variable].diff()
+
+            # Add the rate of change to the DataFrame
+            df[f'{variable}_rate_of_change'] = rate_of_change
+
+            # Handle the first value (NaN after diff) by setting it to 0 or another appropriate value
+            df[f'{variable}_rate_of_change'] = df[f'{variable}_rate_of_change'].fillna(0)
+
+            return df
+
+        except Exception as e:
+            logger.error(f"Error calculating rate of change for {variable}: {e}")
+            return df
+        
     @param.depends('climatology_variable')
     def climatology_view(self):
         """Create a climatology visualization."""
@@ -848,9 +869,9 @@ class SnowMapDashboard(param.Parameterized):
         
         # Get variable label and units
         var_labels = {
-            'SWE': 'Snow Water Equivalent (mm)',
-            'HS': 'Snow Height (m)',
-            'ROF': 'Runoff (mm/day)'
+            'SWE': _('Snow Water Equivalent (mm)'),
+            'HS': _('Snow Height (m)'),
+            'ROF': _('Runoff (mm/day)')
         }
         title = var_labels.get(variable, variable)
         
@@ -863,16 +884,19 @@ class SnowMapDashboard(param.Parameterized):
         # Separate dfc into 2 data frames
         #dff = dfc[dfc['FC']==True, ]
         #dfc = dfc[dfc['FC']==False, ]
-            
+
+        # Calculate rate of change for the current data
+        dfc = self.calculate_rate_of_change(dfc, q50_col)
+        
         # Create the plot
-        shaded_area = df.hvplot.area(
+        avg_shaded_area = df.hvplot.area(
             x='date', 
             y=q5_col, 
             y2=q95_col,
             color=BASE_COLOR_VLIGHT,
             alpha=0.2,
             line_width=0,
-            legend=False
+            label=_('Historical range (5% - 95%)'),
         )
         
         median_line = df.hvplot.line(
@@ -880,7 +904,7 @@ class SnowMapDashboard(param.Parameterized):
             y=q50_col,
             color=BASE_COLOR_LIGHT,
             line_width=2,
-            title=f"{title} - Climatology"
+            label=_('Median (50%)'),
         )
 
         current_line = dfc.hvplot.line(
@@ -888,7 +912,7 @@ class SnowMapDashboard(param.Parameterized):
             y=q50_col,
             color=BASE_COLOR_DARK,
             line_width=2,
-            title=f"{title} - Current"
+            label=_('Current year'),
         )
 
         #forecast_line = dff.hvplot.line(
@@ -899,11 +923,12 @@ class SnowMapDashboard(param.Parameterized):
         #    title=f"{title} - Forecast"
         #)
         
-        plot = (shaded_area * median_line * current_line).opts(
-            xlabel='date',
+        climatology_plot = (avg_shaded_area * median_line * current_line).opts(
+            #xlabel='date',
             ylabel=title,
             toolbar='above',
             tools=['hover'],
+            title=f"{title} - Climatology",
             fontsize={'title': 14, 'labels': 12, 'xticks': 10, 'yticks': 10}, 
             hooks=[remove_bokeh_logo],
             xformatter=DatetimeTickFormatter(
@@ -914,8 +939,34 @@ class SnowMapDashboard(param.Parameterized):
             xticks=None,  # Let Bokeh determine the optimal tick positions
             xrotation=45
         )
-        
-        return plot
+
+        rate_of_change_plot = dfc.hvplot.line(
+            x='date',
+            y=f'{q50_col}_rate_of_change',
+            color=BASE_COLOR_DARK,
+            line_width=2,
+            label=_('Rate of Change'),
+            title=f"{title} - Rate of Change"
+        ).opts(
+            #xlabel='date',
+            ylabel=_('Rate of Change'),
+            toolbar='above',
+            tools=['hover'],
+            fontsize={'title': 14, 'labels': 12, 'xticks': 10, 'yticks': 10},
+            hooks=[remove_bokeh_logo],
+            xformatter=DatetimeTickFormatter(
+                months="%b",
+                days="%b %d",
+            ),
+            xticks=None,
+            xrotation=45,
+            show_legend=False  # Hide legend for rate of change plot
+        )
+
+        # Combine plots vertically using the "+" operator
+        combined_plot = pn.Column(climatology_plot, rate_of_change_plot)
+
+        return combined_plot
 
 
 # Initialize the dashboard with proper variable handling
@@ -1120,7 +1171,7 @@ map_pane = pn.pane.HoloViews(
 )
 
 # Create a climatology pane
-climatology_pane = pn.pane.HoloViews(
+climatology_pane = pn.pane.panel(
     dashboard.climatology_view,
     #sizing_mode='stretch_both',
     #min_height=300,
