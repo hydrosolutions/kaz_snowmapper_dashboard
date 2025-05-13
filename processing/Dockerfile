@@ -21,8 +21,8 @@ ENV GDAL_CONFIG=/usr/bin/gdal-config
 ENV PROJ_LIB=/usr/share/proj
 
 # Copy the Conda environment file and pip requirements file
-COPY ./processing/requirements.yml /app/requirements.yml
-COPY ./processing/pip_requirements.txt /app/pip_requirements.txt
+COPY ../requirements.yml /app/requirements.yml
+COPY ../pip_requirements.txt /app/pip_requirements.txt
 
 # Install Conda dependencies
 RUN conda env create -f /app/requirements.yml && \
