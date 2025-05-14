@@ -1,62 +1,61 @@
-# Use a lightweight base image with Python and Conda
-FROM continuumio/miniconda3:4.12.0 AS builder
-
-# Set environment variables for Conda
-ENV PATH="/opt/conda/bin:$PATH"
-
-# Create a Conda environment and install GDAL 3.10 and other dependencies
-COPY requirements.yml /tmp/requirements.yml
-RUN conda env create -f /tmp/requirements.yml && \
-    conda clean --all --yes
-
-# Activate the Conda environment
-ENV PATH="/opt/conda/envs/mcass_kaz/bin:$PATH"
-ENV CONDA_DEFAULT_ENV=mcass_kaz
-
-# Install additional Python dependencies via pip
-COPY pip_requirements.txt /tmp/pip_requirements.txt
-RUN pip install --no-cache-dir -r /tmp/pip_requirements.txt
-
-# Final stage
-FROM continuumio/miniconda3:4.12.0
-
-# Copy Conda environment from the builder stage
-COPY --from=builder /opt/conda /opt/conda
-ENV PATH="/opt/conda/envs/mcass_kaz/bin:$PATH"
-ENV CONDA_DEFAULT_ENV=mcass_kaz
-
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y \
-    gdal-bin \
-    libgdal-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Create non-root user
-RUN useradd -m -u 1000 dashboard
-
-# Create logs directory and set proper permissions
-RUN mkdir -p /app/logs && \
-    chown -R dashboard:dashboard /app && \
-    chmod 755 /app && \
-    chmod 777 /app/logs
+# Use Miniconda as the base image
+FROM continuumio/miniconda3:latest AS builder
 
 # Set working directory
 WORKDIR /app
 
-# Copy application code
-COPY --chown=dashboard:dashboard . /app
+# Install system dependencies required for GDAL and other geospatial libraries
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libgdal-dev \
+    gdal-bin \
+    libgeos-dev \
+    libproj-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set environment variables for GDAL
+ENV GDAL_CONFIG=/usr/bin/gdal-config
+ENV PROJ_LIB=/usr/share/proj
+
+# Copy the Conda environment file and pip requirements file
+COPY ./requirements.yml /app/requirements.yml
+COPY ./pip_requirements.txt /app/pip_requirements.txt
+
+# Install Conda dependencies
+RUN conda env create -f /app/requirements.yml && \
+    conda clean --all -y
+
+# Activate the Conda environment and install pip dependencies
+RUN /bin/bash -c "source activate mcass_kaz && \
+    pip install --no-cache-dir -r /app/pip_requirements.txt"
+
+# Export the Conda environment to ensure reproducibility
+RUN conda env export > /app/exported_environment.yml
+
+# Final stage: Use a smaller base image for runtime
+FROM continuumio/miniconda3:latest
+
+# Set working directory
+WORKDIR /app
+
+# Copy the Conda environment from the builder stage
+COPY --from=builder /opt/conda /opt/conda
+COPY --from=builder /app /app
 
 # Set environment variables
-ENV PYTHONPATH=/app \
+ENV PATH="/opt/conda/envs/mcass_kaz/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
-    DASHBOARD_ENV=aws \
-    PORT=5006
+    PYTHONPATH=/app
 
-# Switch to non-root user
-USER dashboard
+# Activate the Conda environment by default
+SHELL ["/bin/bash", "-c", "source activate mcass_kaz &&"]
 
-# Expose port
-EXPOSE ${PORT}
+# Copy the rest of the application
+COPY . /app/
 
-# Run the panel server
-CMD ["sh", "-c", "DASHBOARD_ENV=aws panel serve /app/dashboard/snowmapper.py --port $PORT --allow-websocket-origin=kaz.snowmapper.ch --address 0.0.0.0"]
+# Expose the port for the dashboard
+EXPOSE 5006
+
+# Set the default command to run the Panel dashboard
+CMD ["panel", "serve", "/app/dashboard/snowmapper.py", "--port", "5006", "--allow-websocket-origin=kaz.snowmapper.ch", "--address", "0.0.0.0"]
