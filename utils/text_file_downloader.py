@@ -28,6 +28,7 @@ class TextFileDownloader:
         self.climatology_dir = config['climatology']['climatology_dir']
         self.current_file = config['climatology']['current_file']
         self.climate_file = config['climatology']['climate_file']
+        self.previous_file = config['climatology']['previous_file']
 
         # Throw an error if SSH details are not provided
         if not self.ssh_key_path or not self.ssh_host or not self.ssh_user:
@@ -42,6 +43,10 @@ class TextFileDownloader:
             TextFileInfo(
                 remote_path=os.path.join(self.remote_path, self.climatology_dir, self.current_file),
                 local_filename=self.current_file
+            ),
+            TextFileInfo(
+                remote_path=os.path.join(self.remote_path, self.climatology_dir, self.previous_file),
+                local_filename=self.previous_file
             )
         ]
 

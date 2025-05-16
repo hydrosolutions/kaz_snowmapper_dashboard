@@ -39,6 +39,7 @@ climatology:
   climatology_dir: "tables"
   climate_file: "2.0_climate.txt"
   current_file: "2.0_current.txt"
+  previous_file: "2.0_previous.txt"
 
 variables:
   - hs
@@ -56,8 +57,17 @@ visualization:
   smoothing_factor: 1.0
   upscale_factor: 2.0
 
-
-
+demo: 
+  demo_mode_enabled: false
+  demo_start_date: "2025-03-10"
+  demo_end_date: "2025-03-20"
+  demo_data_path: ${DEMO_DATA_PATH}
+  demo_file_prefix: 
+    HS: "HS"
+    SWE: "SWE"
+    ROF: "ROF"
+  demo_file_date_format: "%Y%m%d"
+  demo_no_data_message: "Demo data not available for selected date"
 
 # -- Dashboard -- #
 # Map settings
@@ -100,9 +110,9 @@ variables:
     max_value: 200
   rof:
     name: "runoff"
-    figure_title: "Runoff"
+    figure_title: "Snow melt & excess rain"
     file_prefix: "ROF"
-    widget_short_name: "SM"
+    widget_short_name: "SMER"
     units: "мм"
     colormap: "YlOrRd"
     color_levels: [0.001, 30, 60, 90, 150, 300, 500, 700, 1000]  # in mm
@@ -118,6 +128,6 @@ dashboard:
   default_opacity: 0.7
   tile_provider: "OpenStreetMap"
   day_slider_min: -2  # Number of days to look back from today
-  day_slider_max: 4  # Number of days to look forward from today
+  day_slider_max: 10  # Number of days to look forward from today
 
 
