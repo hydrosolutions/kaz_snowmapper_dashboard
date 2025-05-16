@@ -1294,11 +1294,17 @@ climatology_tab = pn.Column(
 info_tab = pn.Column(
     pn.pane.Markdown("## About Snow Monitoring"),
     pn.pane.Markdown("""
-    This dashboard shows snow conditions in Zhambay basin in Northern Kazakhstan. 
+    This dashboard shows snow conditions in Zhabay basin in Northern Kazakhstan. 
                      
-    The displayed data is based on simulation results from the SnowMapper model developed by the Swiss Research Institute for Snow and Avalanches. 
+    The displayed data is based on simulation results from the [SnowMapper](https://github.com/joelfiddes/snowmapperForecast) model developed by the Swiss Research Institute for Snow and Avalanches. 
+    The following variables are available:
+    - Snow Height (HS) in meters
+    - Snow Water Equivalent (SWE) in millimeters
+    - Snow Melt & Excess Rain (SMER) in millimeters  
     
     This dashboard was developed with funding by the Swiss Federal Agency for Development and Cooperation (SDC) under the project SAPPHIRE Central Asia. 
+                     
+    The dashboard was inspired by the snowmapps of the platform whiterisk ([https://whiterisk.ch/en/conditions/snow-maps/new_snow](https://whiterisk.ch/en/conditions/snow-maps/new_snow)).
     """),
     sizing_mode='stretch_both',
     margin=20
@@ -1367,10 +1373,13 @@ info_content = pn.Column(
     Data is updated daily and includes:
     - Snow Height (HS) in meters
     - Snow Water Equivalent (SWE) in millimeters
+    - Snow Melt & Excess Rain (SMER) in millimeters
 
     To view daily accumulated forecasts of new snow, select the 'New snow' data type.
     To view the simulated snow situation (past and forecast), select the 'Snow situation' data type.
 
+    This dashboard is inspired by the snowmapps of the plattform whiterisk ([https://whiterisk.ch/en/conditions/snow-maps/new_snow](https://whiterisk.ch/en/conditions/snow-maps/new_snow)).                    
+    
     [Close]
     """)),
     width=400,

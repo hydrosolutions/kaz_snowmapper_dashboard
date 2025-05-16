@@ -6,7 +6,7 @@
 # Useage: nohup ./run_data_processor.sh &
 
 # Set the path to your project directory
-PROJECT_DIR=~/kaz_snowmapper_dashboard
+PROJECT_DIR=$(realpath ~/kaz_snowmapper_dashboard)
 
 # Change to project directory
 cd $PROJECT_DIR
@@ -30,6 +30,21 @@ else
     echo "[$TIMESTAMP] Pulling image" >> $PROJECT_DIR/logs/processor.log
     docker pull mabesa/kaz-snowmapper-backend:latest 2>> $PROJECT_DIR/logs/processor.log
 fi
+
+# Verify if pem key file is available
+echo "[$TIMESTAMP] Checking SSH key file..." >> $PROJECT_DIR/logs/processor.log
+ls -la $PROJECT_DIR/processing/swe_server.pem >> $PROJECT_DIR/logs/processor.log 2>&1
+if [ ! -f "$PROJECT_DIR/processing/swe_server.pem" ]; then
+    echo "[$TIMESTAMP] ERROR: SSH key file does not exist at $PROJECT_DIR/processing/swe_server.pem" >> $PROJECT_DIR/logs/processor.log
+    exit 1
+fi
+
+# Checking the directory structure of the container
+echo "[$TIMESTAMP] Checking container directory structure..." >> $PROJECT_DIR/logs/processor.log
+docker run --rm -it \
+  --volume $PROJECT_DIR/processing/swe_server.pem:/app/processing/swe_server.pem:ro \
+  mabesa/kaz-snowmapper-backend:latest \
+  sh -c "ls -la /app/processing/ && file /app/processing/swe_server.pem" >> $PROJECT_DIR/logs/processor.log 2>&1
 
 # Run the data processor container
 echo "[$TIMESTAMP] Starting data processor" 2>> $PROJECT_DIR/logs/processor.log
