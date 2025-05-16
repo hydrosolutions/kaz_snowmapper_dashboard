@@ -58,4 +58,4 @@ COPY . /app/
 EXPOSE 5007
 
 # Set the default command to run the Panel dashboard
-CMD ["panel", "serve", "/app/dashboard/snowmapper.py", "--port", "5006", "--allow-websocket-origin=kaz.snowmapper.ch", "--address", "0.0.0.0"]
+CMD ["panel", "serve", "/app/dashboard/snowmapper.py", "--port", "5007", "--allow-websocket-origin=kaz.snowmapper.ch", "--allow-websocket-origin=0.0.0.0", "--address", "0.0.0.0"]
