@@ -1,11 +1,13 @@
-# Use Miniconda as the base image
+# Use Miniconda as the base image for building the environment
 FROM continuumio/miniconda3:latest AS builder
 
 # Set working directory
 WORKDIR /app
 
 # Install system dependencies required for GDAL and other geospatial libraries
-RUN apt-get update && apt-get install -y \
+# Ensure these are *build-time* dependencies if only needed for Conda package compilation,
+# or provide data files needed later.
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libgdal-dev \
     gdal-bin \
@@ -14,41 +16,38 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Set environment variables for GDAL
-ENV GDAL_CONFIG=/usr/bin/gdal-config
-ENV PROJ_LIB=/usr/share/proj
+# Set environment variables for GDAL during the BUILD phase if needed
+# ENV GDAL_CONFIG=/usr/bin/gdal-config
+# ENV PROJ_LIB=/usr/share/proj
 
 # Copy the Conda environment file and pip requirements file
 COPY ./requirements.yml /app/requirements.yml
 COPY ./pip_requirements.txt /app/pip_requirements.txt
 
-# Install Conda dependencies
-RUN conda env create -f /app/requirements.yml && \
+# Install Conda dependencies into a named environment
+RUN conda env create -f /app/requirements.yml -n mcass_kaz && \
     conda clean --all -y
 
-# A debugging step to check the conda environment
-RUN conda info --envs && \
-    ls -la /opt/conda/envs/
-
 # Activate the Conda environment and install pip dependencies
+# Use runuser or similar if permissions are an issue, but bash -c with source is standard
 RUN /bin/bash -c "source activate mcass_kaz && \
     pip install --no-cache-dir -r /app/pip_requirements.txt"
 
-# Export the Conda environment to ensure reproducibility
-RUN conda env export > /app/exported_environment.yml
-
-# Final stage: Use a smaller base image for runtime
+# --- Final Stage ---
+# Use a smaller base image for runtime, keeping a clean Conda installation
 FROM continuumio/miniconda3:latest
 
 # Set working directory
 WORKDIR /app
 
-# Copy the Conda environment from the builder stage
-COPY --from=builder /opt/conda /opt/conda
-COPY --from=builder /app /app
+# Copy ONLY the specific Conda environment from the builder stage
+# Copy it into the standard environments directory of the final image's Conda installation
 COPY --from=builder /opt/conda/envs/mcass_kaz /opt/conda/envs/mcass_kaz
+# Optionally copy exported_environment.yml if you need it in the final image
+# COPY --from=builder /app/exported_environment.yml /app/exported_environment.yml
 
-# Set environment variables
+
+# Set environment variables for the runtime environment
 ENV PATH="/opt/conda/envs/mcass_kaz/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
@@ -56,34 +55,24 @@ ENV PATH="/opt/conda/envs/mcass_kaz/bin:$PATH" \
     PROJ_DATA="/opt/conda/envs/mcass_kaz/share/proj" \
     GDAL_DATA="/opt/conda/envs/mcass_kaz/share/gdal"
 
-# Activate the Conda environment by default
+# Set the shell for RUN and CMD instructions to allow 'source'
 SHELL ["/bin/bash", "-c"]
 
-RUN ls -la / | grep conda && \
-    ls -la /conda 2>/dev/null || echo "No /conda" && \
-    ls -la /opt/conda 2>/dev/null || echo "No /opt/conda"
-
-# Before activating the environment, create a symlink to ensure conda can find it
-RUN conda config --add envs_dirs /opt/conda/envs && \
-    conda info --envs
-
-RUN source activate mcass_kaz && echo "===== PATHS =====" && \
-    ls -la | grep conda && \
-    echo "===== CONDA ENV =====" && \
-    conda info --envs
-    
-# Ensure PROJ data is available in conda environment
+# Ensure PROJ and GDAL data files are available in the Conda environment's share directory
+# Copying from /usr/share from the builder stage where they were installed via apt
 RUN bash -c "source activate mcass_kaz && \
     mkdir -p /opt/conda/envs/mcass_kaz/share/proj && \
     mkdir -p /opt/conda/envs/mcass_kaz/share/gdal && \
-    cp -r /usr/share/proj/* /opt/conda/envs/mcass_kaz/share/proj/ 2>/dev/null || true && \
-    cp -r /usr/share/gdal/* /opt/conda/envs/mcass_kaz/share/gdal/ 2>/dev/null || true"
+    # Use --no-dereference (-L) with cp if copying symlinks
+    cp -Lr /usr/share/proj/* /opt/conda/envs/mcass_kaz/share/proj/ 2>/dev/null || true && \
+    cp -Lr /usr/share/gdal/* /opt/conda/envs/mcass_kaz/share/gdal/ 2>/dev/null || true"
 
-# Copy the rest of the application
+# Copy the rest of the application code into the final image
 COPY . /app/
 
 # Expose the port for the dashboard
 EXPOSE 5007
 
 # Set the default command to run the Panel dashboard
+# Use bash -c to ensure source activate works
 CMD ["bash", "-c", "source activate mcass_kaz && panel serve /app/dashboard/snowmapper.py --port 5007 --allow-websocket-origin=kaz.snowmapper.ch --allow-websocket-origin=0.0.0.0 --address 0.0.0.0"]
