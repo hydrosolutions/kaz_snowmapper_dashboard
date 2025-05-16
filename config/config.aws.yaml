@@ -26,5 +26,5 @@ logging:
 
 # Security settings
 security:
-  allowed_origins: ["https://kaz.snowmapper.ch"]
+  allowed_origins: ["https://kaz.snowmapper.ch", "0.0.0.0"]
   cors_enabled: true
