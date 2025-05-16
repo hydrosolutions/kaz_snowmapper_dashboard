@@ -56,7 +56,7 @@ SHELL ["/bin/bash", "-c", "source activate mcass_kaz &&"]
 
 # Ensure PROJ data is available in conda environment
 RUN mkdir -p /opt/conda/envs/mcass_kaz/share/proj && \
-    if [ -d "/usr/share/proj" ]; then \
+    if [ -d "/usr/share/proj" ]; then \ 
       cp -r /usr/share/proj/* /opt/conda/envs/mcass_kaz/share/proj/; \
     fi && \
     mkdir -p /opt/conda/envs/mcass_kaz/share/gdal && \
