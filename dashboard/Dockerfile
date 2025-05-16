@@ -44,23 +44,28 @@ COPY --from=builder /opt/conda /opt/conda
 COPY --from=builder /app /app
 
 # Set environment variables
-ENV PATH="/opt/conda/envs/mcass_kaz/bin:$PATH" \
+ENV PATH="/conda/envs/mcass_kaz/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
-    PROJ_LIB="/opt/conda/envs/mcass_kaz/share/proj" \
-    PROJ_DATA="/opt/conda/envs/mcass_kaz/share/proj" \
-    GDAL_DATA="/opt/conda/envs/mcass_kaz/share/gdal"
+    PROJ_LIB="/conda/envs/mcass_kaz/share/proj" \
+    PROJ_DATA="/conda/envs/mcass_kaz/share/proj" \
+    GDAL_DATA="/conda/envs/mcass_kaz/share/gdal"
 
 # Activate the Conda environment by default
 SHELL ["/bin/bash", "-c", "source activate mcass_kaz &&"]
 
+RUN echo "===== PATHS =====" && \
+    ls -la / | grep conda && \
+    echo "===== CONDA ENV =====" && \
+    conda info --envs
+    
 # Ensure PROJ data is available in conda environment
 RUN bash -c 'source activate mcass_kaz && \
-    mkdir -p /opt/conda/envs/mcass_kaz/share/proj && \
-    mkdir -p /opt/conda/envs/mcass_kaz/share/gdal && \
-    cp -r /usr/share/proj/* /opt/conda/envs/mcass_kaz/share/proj/ 2>/dev/null || true && \
-    cp -r /usr/share/gdal/* /opt/conda/envs/mcass_kaz/share/gdal/ 2>/dev/null || true'
-    
+    mkdir -p /conda/envs/mcass_kaz/share/proj && \
+    mkdir -p /conda/envs/mcass_kaz/share/gdal && \
+    cp -r /usr/share/proj/* /conda/envs/mcass_kaz/share/proj/ 2>/dev/null || true && \
+    cp -r /usr/share/gdal/* /conda/envs/mcass_kaz/share/gdal/ 2>/dev/null || true'
+
 # Copy the rest of the application
 COPY . /app/
 
