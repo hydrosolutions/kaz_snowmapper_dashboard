@@ -55,7 +55,7 @@ ENV PATH="/conda/envs/mcass_kaz/bin:$PATH" \
 SHELL ["/bin/bash", "-c"]
 
 RUN source activate mcass_kaz && echo "===== PATHS =====" && \
-    ls -la / | grep conda && \
+    ls -la | grep conda && \
     echo "===== CONDA ENV =====" && \
     conda info --envs
     
