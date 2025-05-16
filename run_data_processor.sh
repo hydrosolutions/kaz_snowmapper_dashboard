@@ -6,7 +6,7 @@
 # Useage: nohup ./run_data_processor.sh &
 
 # Set the path to your project directory
-PROJECT_DIR=~/kaz_snowmapper_dashboard
+PROJECT_DIR=$(realpath ~/kaz_snowmapper_dashboard)
 
 # Change to project directory
 cd $PROJECT_DIR
