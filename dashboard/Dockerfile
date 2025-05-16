@@ -73,11 +73,11 @@ RUN source activate mcass_kaz && echo "===== PATHS =====" && \
     conda info --envs
     
 # Ensure PROJ data is available in conda environment
-RUN bash -c source activate mcass_kaz && \
+RUN bash -c "source activate mcass_kaz && \
     mkdir -p /conda/envs/mcass_kaz/share/proj && \
     mkdir -p /conda/envs/mcass_kaz/share/gdal && \
     cp -r /usr/share/proj/* /conda/envs/mcass_kaz/share/proj/ 2>/dev/null || true && \
-    cp -r /usr/share/gdal/* /conda/envs/mcass_kaz/share/gdal/ 2>/dev/null || true
+    cp -r /usr/share/gdal/* /conda/envs/mcass_kaz/share/gdal/ 2>/dev/null || true"
 
 # Copy the rest of the application
 COPY . /app/
