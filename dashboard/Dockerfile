@@ -40,7 +40,7 @@ FROM continuumio/miniconda3:latest
 WORKDIR /app
 
 # Copy the Conda environment from the builder stage
-COPY --from=builder /opt/conda /opt/conda
+COPY --from=builder /opt/conda /conda
 COPY --from=builder /app /app
 
 # Set environment variables
@@ -53,6 +53,10 @@ ENV PATH="/conda/envs/mcass_kaz/bin:$PATH" \
 
 # Activate the Conda environment by default
 SHELL ["/bin/bash", "-c"]
+
+RUN ls -la / | grep conda && \
+    ls -la /conda 2>/dev/null || echo "No /conda" && \
+    ls -la /opt/conda 2>/dev/null || echo "No /opt/conda"
 
 RUN source activate mcass_kaz && echo "===== PATHS =====" && \
     ls -la | grep conda && \
