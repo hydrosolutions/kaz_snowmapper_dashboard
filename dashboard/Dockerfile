@@ -55,7 +55,7 @@ SHELL ["/bin/bash", "-c", "source activate mcass_kaz &&"]
 COPY . /app/
 
 # Expose the port for the dashboard
-EXPOSE 5006
+EXPOSE 5007
 
 # Set the default command to run the Panel dashboard
 CMD ["panel", "serve", "/app/dashboard/snowmapper.py", "--port", "5006", "--allow-websocket-origin=kaz.snowmapper.ch", "--address", "0.0.0.0"]
