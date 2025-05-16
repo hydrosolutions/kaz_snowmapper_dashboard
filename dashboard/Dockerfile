@@ -55,13 +55,12 @@ ENV PATH="/opt/conda/envs/mcass_kaz/bin:$PATH" \
 SHELL ["/bin/bash", "-c", "source activate mcass_kaz &&"]
 
 # Ensure PROJ data is available in conda environment
-RUN /bin/bash -c "\
-    source activate mcass_kaz && \
+RUN bash -c 'source activate mcass_kaz && \
     mkdir -p /opt/conda/envs/mcass_kaz/share/proj && \
     mkdir -p /opt/conda/envs/mcass_kaz/share/gdal && \
-    if [ -d /usr/share/proj ]; then cp -r /usr/share/proj/* /opt/conda/envs/mcass_kaz/share/proj/ || true; fi && \
-    if [ -d /usr/share/gdal ]; then cp -r /usr/share/gdal/* /opt/conda/envs/mcass_kaz/share/gdal/ || true; fi"
-
+    cp -r /usr/share/proj/* /opt/conda/envs/mcass_kaz/share/proj/ 2>/dev/null || true && \
+    cp -r /usr/share/gdal/* /opt/conda/envs/mcass_kaz/share/gdal/ 2>/dev/null || true'
+    
 # Copy the rest of the application
 COPY . /app/
 
