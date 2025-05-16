@@ -26,6 +26,10 @@ COPY ./pip_requirements.txt /app/pip_requirements.txt
 RUN conda env create -f /app/requirements.yml && \
     conda clean --all -y
 
+# A debugging step to check the conda environment
+RUN conda info --envs && \
+    ls -la /opt/conda/envs/
+
 # Activate the Conda environment and install pip dependencies
 RUN /bin/bash -c "source activate mcass_kaz && \
     pip install --no-cache-dir -r /app/pip_requirements.txt"
@@ -42,6 +46,7 @@ WORKDIR /app
 # Copy the Conda environment from the builder stage
 COPY --from=builder /opt/conda /conda
 COPY --from=builder /app /app
+COPY --from=builder /opt/conda/envs/mcass_kaz /conda/envs/mcass_kaz
 
 # Set environment variables
 ENV PATH="/conda/envs/mcass_kaz/bin:$PATH" \
@@ -58,6 +63,10 @@ RUN ls -la / | grep conda && \
     ls -la /conda 2>/dev/null || echo "No /conda" && \
     ls -la /opt/conda 2>/dev/null || echo "No /opt/conda"
 
+# Before activating the environment, create a symlink to ensure conda can find it
+RUN conda config --add envs_dirs /conda/envs && \
+    conda info --envs
+    
 RUN source activate mcass_kaz && echo "===== PATHS =====" && \
     ls -la | grep conda && \
     echo "===== CONDA ENV =====" && \
