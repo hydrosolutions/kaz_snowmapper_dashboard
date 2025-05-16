@@ -46,7 +46,7 @@ WORKDIR /app
 # Copy the Conda environment from the builder stage
 COPY --from=builder /opt/conda /conda
 COPY --from=builder /app /app
-COPY --from=builder /opt/conda/envs/mcass_kaz /conda/envs/mcass_kaz
+COPY --from=builder /conda/envs/mcass_kaz /conda/envs/mcass_kaz
 
 # Set environment variables
 ENV PATH="/conda/envs/mcass_kaz/bin:$PATH" \
@@ -66,7 +66,7 @@ RUN ls -la / | grep conda && \
 # Before activating the environment, create a symlink to ensure conda can find it
 RUN conda config --add envs_dirs /conda/envs && \
     conda info --envs
-    
+
 RUN source activate mcass_kaz && echo "===== PATHS =====" && \
     ls -la | grep conda && \
     echo "===== CONDA ENV =====" && \
