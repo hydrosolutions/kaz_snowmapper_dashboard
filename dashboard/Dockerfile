@@ -44,17 +44,17 @@ FROM continuumio/miniconda3:latest
 WORKDIR /app
 
 # Copy the Conda environment from the builder stage
-COPY --from=builder /opt/conda /conda
+COPY --from=builder /opt/conda /opt/conda
 COPY --from=builder /app /app
-COPY --from=builder /conda/envs/mcass_kaz /conda/envs/mcass_kaz
+COPY --from=builder /opt/conda/envs/mcass_kaz /opt/conda/envs/mcass_kaz
 
 # Set environment variables
-ENV PATH="/conda/envs/mcass_kaz/bin:$PATH" \
+ENV PATH="/opt/conda/envs/mcass_kaz/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
-    PROJ_LIB="/conda/envs/mcass_kaz/share/proj" \
-    PROJ_DATA="/conda/envs/mcass_kaz/share/proj" \
-    GDAL_DATA="/conda/envs/mcass_kaz/share/gdal"
+    PROJ_LIB="/opt/conda/envs/mcass_kaz/share/proj" \
+    PROJ_DATA="/opt/conda/envs/mcass_kaz/share/proj" \
+    GDAL_DATA="/opt/conda/envs/mcass_kaz/share/gdal"
 
 # Activate the Conda environment by default
 SHELL ["/bin/bash", "-c"]
@@ -64,7 +64,7 @@ RUN ls -la / | grep conda && \
     ls -la /opt/conda 2>/dev/null || echo "No /opt/conda"
 
 # Before activating the environment, create a symlink to ensure conda can find it
-RUN conda config --add envs_dirs /conda/envs && \
+RUN conda config --add envs_dirs /opt/conda/envs && \
     conda info --envs
 
 RUN source activate mcass_kaz && echo "===== PATHS =====" && \
@@ -74,10 +74,10 @@ RUN source activate mcass_kaz && echo "===== PATHS =====" && \
     
 # Ensure PROJ data is available in conda environment
 RUN bash -c "source activate mcass_kaz && \
-    mkdir -p /conda/envs/mcass_kaz/share/proj && \
-    mkdir -p /conda/envs/mcass_kaz/share/gdal && \
-    cp -r /usr/share/proj/* /conda/envs/mcass_kaz/share/proj/ 2>/dev/null || true && \
-    cp -r /usr/share/gdal/* /conda/envs/mcass_kaz/share/gdal/ 2>/dev/null || true"
+    mkdir -p /opt/conda/envs/mcass_kaz/share/proj && \
+    mkdir -p /opt/conda/envs/mcass_kaz/share/gdal && \
+    cp -r /usr/share/proj/* /opt/conda/envs/mcass_kaz/share/proj/ 2>/dev/null || true && \
+    cp -r /usr/share/gdal/* /opt/conda/envs/mcass_kaz/share/gdal/ 2>/dev/null || true"
 
 # Copy the rest of the application
 COPY . /app/
