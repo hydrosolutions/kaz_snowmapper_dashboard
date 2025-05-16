@@ -45,6 +45,7 @@ numba==0.61.2
 numcodecs==0.15.1
 packaging==25.0
 param==2.2.0
+paramiko==3.5.1
 partd==1.4.2
 platformdirs==4.3.7
 pooch==1.8.2

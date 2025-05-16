@@ -36,6 +36,7 @@ from shapely.validation import make_valid
 import spatialpandas as spd
 import hvplot.pandas
 from bokeh.models.tickers import FixedTicker
+from bokeh.models import DatetimeTickFormatter
 import pyproj
 
 import gettext
@@ -107,7 +108,12 @@ _ = loc.gettext
 MAP_COLOR_SCALE_NEW_SNOW = [0.1, 10.0, 20.0, 30.0, 40.0, 60.0, 80.0, 100.0]  # in cm
 MAP_COLOR_SCALE_HS = [0.1, 20.0, 50.0, 80.0, 120.0, 200.0, 300.0, 400.0]  # in cm
 
-
+BASE_COLOR_VLIGHT = '#b3c3cb'
+BASE_COLOR_LIGHT = '#78a3b0'
+BASE_COLOR_MEDIUM = '#4e6f7e'
+BASE_COLOR_DARK = '#1e383f'
+FORECAST_COLOR = '#B055A7'  # '#9F5F9F'
+PREVIOUS_COLOR = '#7fb27f'
 
 # Add this before creating your template
 def remove_bokeh_logo(plot, element):
@@ -264,8 +270,8 @@ class SnowMapViewer:
             # Set map bounds from config
             return tiles.opts(
                 hooks=[remove_bokeh_logo],
-                width=1200,  # Allow width to adjust to container
-                height=800,  # Allow height to adjust to container
+                #width=1200,  # Allow width to adjust to container
+                #height=800,  # Allow height to adjust to container
                 xaxis=None,  # Remove x axis
                 yaxis=None,  # Remove y axis
                 active_tools=['pan', 'wheel_zoom'],
@@ -273,7 +279,11 @@ class SnowMapViewer:
                 xlim=(self.bounds['min_x'], self.bounds['max_x']),
                 ylim=(self.bounds['min_y'], self.bounds['max_y']),
                 projection=crs.GOOGLE_MERCATOR,
-                aspect='equal',
+                #frame_width=800,
+                #frame_height=500,
+                #sizing_mode='scale_width',
+                aspect='auto',
+                responsive=True
             )
 
         except Exception as e:
@@ -472,9 +482,6 @@ class SnowMapViewer:
             line_color=None,
             line_width=0,
             alpha=opacity,
-            width=325,
-            height=325,
-            #tools=['hover']
         )
 
         self.logger.debug(f"Contours created successfully")
@@ -615,16 +622,13 @@ class SnowMapViewer:
             # Combine base map with raster
             return (map_view * contours * country_outline).opts(
                 hooks=[remove_bokeh_logo],
-                width=1200,
-                height=800,
-                #xaxis=None,
-                #yaxis=None,
+                responsive=True, 
                 active_tools=['pan', 'wheel_zoom'],
                 scalebar=True,
                 xlim=(self.bounds['min_x'], self.bounds['max_x']),
                 ylim=(self.bounds['min_y'], self.bounds['max_y']),
                 projection=crs.GOOGLE_MERCATOR,
-                aspect='equal',
+                aspect='auto',
             )
 
         except Exception as e:
@@ -653,6 +657,9 @@ class SnowMapDashboard(param.Parameterized):
         step=0.1,
         doc="Opacity of the overlay layer"
     )
+    # Climatology variable parameter for climatology plot
+    climatology_variable = param.Selector(default='SWE', objects=['SWE', 'HS', 'ROF'])
+    
 
     def __init__(self, data_dir: Path, config: dict, **params):
         self.config = config
@@ -790,6 +797,271 @@ class SnowMapDashboard(param.Parameterized):
         var_config = self.config['variables'][var_name]
         return f"{var_config['widget_short_name']} ({var_config['units']})"
 
+    def read_climatology_data(self):
+        """Read climatology data from the configured file."""
+        try:
+            # Construct path matching the pattern in TextFileDownloader
+            climate_path = Path(self.config['paths']['input_dir']) / self.config['climatology']['climate_file']
+            
+            if not climate_path.exists():
+                self.logger.error(f"Climatology file not found: {climate_path}")
+                return None
+                
+            df = pd.read_csv(climate_path, sep=',', parse_dates=['date'])
+            return df
+        except Exception as e:
+            self.logger.error(f"Error reading climatology data: {e}")
+            return None
+        
+    def read_current_data(self): 
+        """Read current data from the configured file."""
+        try: 
+            # Construct path matching the pattern in TextFileDownloader
+            current_path = Path(self.config['paths']['input_dir']) / self.config['climatology']['current_file']
+            
+            if not current_path.exists():
+                self.logger.error(f"Current file not found: {current_path}")
+                return None
+                
+            df = pd.read_csv(current_path, sep='\t', parse_dates=['date'])
+            return df
+        except Exception as e:
+            self.logger.error(f"Error reading current data: {e}")
+            return None
+        
+    def read_previous_data(self): 
+        """Read previous data from the configured file."""
+        try: 
+            # Construct path matching the pattern in TextFileDownloader
+            previous_path = Path(self.config['paths']['input_dir']) / self.config['climatology']['previous_file']
+            
+            if not previous_path.exists():
+                self.logger.error(f"Current file not found: {previous_path}")
+                return None
+                
+            df = pd.read_csv(previous_path, sep='\t', parse_dates=['date'])
+            return df
+        except Exception as e:
+            self.logger.error(f"Error reading current data: {e}")
+            return None
+    
+    def calculate_rate_of_change(self, df: pd.DataFrame, variable: str) -> pd.DataFrame:
+        """Calculate the rate of change for a given variable."""
+        try:
+            # Ensure the DataFrame is sorted by date
+            df = df.sort_values(by='date')
+
+            # Calculate the rate of change using the diff() method
+            rate_of_change = df[variable].diff()
+
+            # Add the rate of change to the DataFrame
+            df[f'{variable}_rate_of_change'] = rate_of_change
+
+            # Handle the first value (NaN after diff) by setting it to 0 or another appropriate value
+            df[f'{variable}_rate_of_change'] = df[f'{variable}_rate_of_change'].fillna(0)
+
+            return df
+
+        except Exception as e:
+            logger.error(f"Error calculating rate of change for {variable}: {e}")
+            return df
+        
+    @param.depends('climatology_variable')
+    def climatology_view(self):
+        """Create a climatology visualization."""
+        df = self.read_climatology_data()
+        if df is None:
+            return hv.Text(0, 0, "Error: Climatology data not available")
+        
+        dfc = self.read_current_data()
+        if dfc is None:
+            return hv.Text(0, 0, "Error: Current data not available")
+        
+        dfp = self.read_previous_data()
+        if dfp is None:
+            return hv.Text(0, 0, "Error: Previous data not available")
+        
+        # Extract columns for the selected variable
+        variable = self.climatology_variable
+        q5_col = f'Q5_{variable}'
+        q50_col = f'Q50_{variable}'
+        q95_col = f'Q95_{variable}'
+        
+        if not all(col in df.columns for col in [q5_col, q50_col, q95_col]):
+            return hv.Text(0, 0, f"Error: Required columns for {variable} not found in data")
+        
+        # Get variable label and units
+        var_labels = {
+            'SWE': _('Snow Water Equivalent (mm)'),
+            'HS': _('Snow Height (m)'),
+            'ROF': _('Runoff (mm/day)')
+        }
+        title = var_labels.get(variable, variable)
+        
+        # Convert date to datetime if needed
+        if not pd.api.types.is_datetime64_any_dtype(df['date']):
+            df['date'] = pd.to_datetime(df['date'])
+        if not pd.api.types.is_datetime64_any_dtype(dfc['date']):
+            dfc['date'] = pd.to_datetime(dfc['date'])
+
+        # Separate dfc into 2 data frames
+        dff = dfc[dfc['FC']==True].copy()
+        dfc = dfc[dfc['FC']==False].copy()
+
+        # Calculate rate of change for the current data
+        df = self.calculate_rate_of_change(df, q50_col)
+        dfc = self.calculate_rate_of_change(dfc, q50_col)
+        dff = self.calculate_rate_of_change(dff, q50_col)
+        dfp = self.calculate_rate_of_change(dfp, q50_col)
+
+        # Create the plot
+        avg_shaded_area = df.hvplot.area(
+            x='date', 
+            y=q5_col, 
+            y2=q95_col,
+            color=BASE_COLOR_VLIGHT,
+            alpha=0.2,
+            line_width=0,
+            label=_('Historical range (5% - 95%)'),
+        )
+        
+        median_line = df.hvplot.line(
+            x='date', 
+            y=q50_col,
+            color=BASE_COLOR_LIGHT,
+            line_width=2,
+            label=_('Median (50%)'),
+        )
+
+        previous_line = dfp.hvplot.line(
+            x='date', 
+            y=q50_col,
+            color=PREVIOUS_COLOR,
+            line_width=2,
+            label=_('Previous year'),
+        )
+
+        current_line = dfc.hvplot.line(
+            x='date', 
+            y=q50_col,
+            color=FORECAST_COLOR, 
+            line_width=2,
+            label=_('Current year'),
+        )
+
+        forecast_line = dff.hvplot.line(
+            x='date', 
+            y=q50_col,
+            color=FORECAST_COLOR,
+            line_width=2,
+            line_dash='dashed', 
+            label=_('Forecast'),
+        )
+        
+        climatology_plot = (avg_shaded_area * median_line * previous_line * current_line * forecast_line).opts(
+            #xlabel='date',
+            ylabel=title,
+            toolbar='above',
+            tools=['hover'],
+            title=f"{title} - Climatology",
+            fontsize={'title': 14, 'labels': 12, 'xticks': 10, 'yticks': 10}, 
+            hooks=[remove_bokeh_logo],
+            xformatter=DatetimeTickFormatter(
+                months="%b",
+                days="%b %d",
+                #hours="%b %d %H:%M"
+            ),
+            xticks=None,  # Let Bokeh determine the optimal tick positions
+            xrotation=45,
+            legend_position='right',
+            legend_opts={
+                'location': 'center',
+                'label_standoff': 10  # distance between labels and legend edge
+            },
+            min_width=400, 
+            responsive=True,
+        )
+
+        climate_rate_of_change = df.hvplot.line(
+            x='date',
+            y=f'{q50_col}_rate_of_change',
+            color=BASE_COLOR_VLIGHT,
+            line_width=2,
+            label=_('Historical range (5% - 95%)')
+        )
+        
+        previous_rate_of_change = dfp.hvplot.line(
+            x='date',
+            y=f'{q50_col}_rate_of_change',
+            color=PREVIOUS_COLOR,
+            line_width=2,
+            label=_('Previous year')
+        )
+
+        current_rate_of_change = dfc.hvplot.line(
+            x='date',
+            y=f'{q50_col}_rate_of_change',
+            color=FORECAST_COLOR,
+            line_width=2,
+            label=_('Current year')
+        )
+
+        forecast_rate_of_change = dff.hvplot.line(
+            x='date',
+            y=f'{q50_col}_rate_of_change',
+            color=FORECAST_COLOR,
+            line_width=2,
+            line_dash='dashed',
+            label=_('Forecast')
+        )
+
+        rate_of_change_plot = (climate_rate_of_change * previous_rate_of_change * current_rate_of_change * forecast_rate_of_change).opts(
+            ylabel=_('Rate of Change'),
+            toolbar='above',
+            tools=['hover'],
+            fontsize={'title': 14, 'labels': 12, 'xticks': 10, 'yticks': 10},
+            hooks=[remove_bokeh_logo],
+            xformatter=DatetimeTickFormatter(
+                months="%b",
+                days="%b %d",
+            ),
+            xticks=None,
+            xrotation=45,
+            show_legend=True,
+            legend_position='right',
+            legend_opts={
+                'location': 'center',
+                'label_standoff': 10  # distance between labels and legend edge
+            },
+            min_width=400, 
+            responsive=True,
+        )
+
+        # Wrap plots in HoloViews panes with specific sizing rules
+        climatology_pane = pn.pane.HoloViews(
+            climatology_plot,
+            sizing_mode='stretch_width',
+            width_policy='max',
+            height=300
+        )
+        
+        rate_of_change_pane = pn.pane.HoloViews(
+            rate_of_change_plot,
+            sizing_mode='stretch_width', 
+            width_policy='max',
+            height=300
+        )
+
+        # Combine plots vertically using the "+" operator
+        combined_plot = pn.Column(
+            climatology_pane, 
+            rate_of_change_pane, 
+            sizing_mode='stretch_width',
+            width_policy='max',
+            height_policy='auto',)
+
+        return combined_plot
+
 
 # Initialize the dashboard with proper variable handling
 dashboard = SnowMapDashboard(
@@ -870,21 +1142,38 @@ def get_control_panel(variable):
     return base_controls
 
 # Create the dashboard layout with dynamic controls
-controls = pn.bind(get_control_panel, dashboard.param.variable)
+map_controls = pn.bind(get_control_panel, dashboard.param.variable)
+
+# Climatology sidebar controls
+# Create climatology variable selector
+climatology_var_selector = pn.widgets.Select(
+    name=_('Variable'),
+    options={
+        _('Snow Water Equivalent'): 'SWE',
+        _('Snow Height'): 'HS',
+        _('Snowmelt & excess rain'): 'ROF'
+    },
+    value='SWE'
+)
+
+# Link selector to dashboard
+climatology_var_selector.link(dashboard, value='climatology_variable')
+
+climatology_controls = pn.Column(
+    pn.pane.Markdown(_("### Climatology Controls")),
+    climatology_var_selector
+)
 
 # Initialize template
 template = pn.template.BootstrapTemplate(
     title=_("Snow Situation Kazakhstan"),
     logo=config['paths']['favicon_path'],
     sidebar_width=350,
-    header_background="#2B547E",  # Dark blue header
+    header_background=BASE_COLOR_MEDIUM, 
     favicon=config['paths']['favicon_path']
 )
 
-# Add controls to the sidebar
-template.sidebar.append(
-    controls,
-)
+
 '''
 # Add spacer to push logos to bottom
 template.sidebar.append(pn.Spacer(height=80))
@@ -935,19 +1224,32 @@ template.config.raw_css.append("""
 .bk-root {
     width: 100%;
     height: 100%;
+    max-width: 100wv;  /* Set max width to 100% of viewport width */
+    max-height: 100vh; /* Set max height to 100% of viewport height */
+    overflow: hidden;  /* Hide overflow */
 }
 
 .main-content {
     height: calc(100vh - 50px);
     width: 100%;
+    max-width: 100%;
     padding: 0 !important;
     margin: 0 !important;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
 }
 
 .bk-root .bk {
     flex-grow: 1;
+    max-width: 100%;
+}
+                               
+.bk-root .bk-Plot {
+    flex-grow: 1;
+    max-width: 100%;
+    max-height: 100%;
+    overflow: hidden;
 }
 """)
 
@@ -955,14 +1257,83 @@ template.config.raw_css.append("""
 map_pane = pn.pane.HoloViews(
     dashboard.view,
     sizing_mode='stretch_both',
+    #sizing_mode='scale_width',
+    width_policy='max',
+    height_policy='fit',
     min_height=300,
+    #max_width=800, 
+)
+
+# Create a climatology pane
+climatology_pane = pn.pane.panel(
+    dashboard.climatology_view,
+    #sizing_mode='stretch_both',
+    #min_height=300,
+    sizing_mode='scale_width',
+    width_policy='max',
+    min_height=300,
+    #max_width=800,
+)
+
+# Creating tabs 
+map_tab = pn.Column(
+    dashboard.data_freshness_manager.get_warning_component(),
+    map_pane,
+    sizing_mode='stretch_width',
+    height_policy='fit', 
+    margin=10,
+    css_classes=['main-content']
+)
+climatology_tab = pn.Column(
+    dashboard.data_freshness_manager.get_warning_component(),
+    climatology_pane,
+    sizing_mode='stretch_both',
+    margin=10,
+    css_classes=['main-content']
+)
+info_tab = pn.Column(
+    pn.pane.Markdown("## About Snow Monitoring"),
+    pn.pane.Markdown("""
+    This dashboard shows snow conditions in Zhambay basin in Northern Kazakhstan. 
+                     
+    The displayed data is based on simulation results from the SnowMapper model developed by the Swiss Research Institute for Snow and Avalanches. 
+    
+    This dashboard was developed with funding by the Swiss Federal Agency for Development and Cooperation (SDC) under the project SAPPHIRE Central Asia. 
+    """),
+    sizing_mode='stretch_both',
+    margin=20
+)
+# Create tabs
+tabs = pn.Tabs(
+    ('Map', map_tab),
+    ('Climatology', climatology_tab),
+    ('Info', info_tab),
+    sizing_mode='stretch_both',
+)
+
+# Function to get appropriate sidebar content based on active tab
+def get_sidebar_content(active_tab):
+    if active_tab == 0:  # Map tab
+        return map_controls
+    elif active_tab == 1:  # Climatology tab
+        return climatology_controls
+    else:  # Info tab
+        return pn.pane.Markdown("")  # Empty sidebar for Info tab
+
+# Create dynamic sidebar content
+sidebar_content = pn.bind(get_sidebar_content, tabs.param.active)
+
+# Add controls to the sidebar
+template.sidebar.append(
+    sidebar_content,
 )
 
 # Add main view to the main area
 template.main.append(
     pn.Column(
-        dashboard.data_freshness_manager.get_warning_component(),
-        map_pane,
+        #dashboard.data_freshness_manager.get_warning_component(),
+        #map_pane,
+        tabs, 
         sizing_mode='stretch_both',
         margin=10,
         css_classes=['main-content']
@@ -1026,12 +1397,12 @@ info_button.on_click(toggle_info)
 template.header.append(
     pn.Row(
         header,
-        info_button,
+        #info_button,
         sizing_mode='stretch_width'
     )
 )
 
-template.main.append(info_content)
+#template.main.append(info_content)
 
 
 # Make the dashboard servable
