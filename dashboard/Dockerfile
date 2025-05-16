@@ -55,10 +55,12 @@ ENV PATH="/opt/conda/envs/mcass_kaz/bin:$PATH" \
 SHELL ["/bin/bash", "-c", "source activate mcass_kaz &&"]
 
 # Ensure PROJ data is available in conda environment
-RUN mkdir -p /opt/conda/envs/mcass_kaz/share/proj \
-    && mkdir -p /opt/conda/envs/mcass_kaz/share/gdal \
-    && if [ -d "/usr/share/proj" ]; then cp -r /usr/share/proj/* /opt/conda/envs/mcass_kaz/share/proj/ || true; fi \
-    && if [ -d "/usr/share/gdal" ]; then cp -r /usr/share/gdal/* /opt/conda/envs/mcass_kaz/share/gdal/ || true; fi
+RUN /bin/bash -c "\
+    source activate mcass_kaz && \
+    mkdir -p /opt/conda/envs/mcass_kaz/share/proj && \
+    mkdir -p /opt/conda/envs/mcass_kaz/share/gdal && \
+    if [ -d /usr/share/proj ]; then cp -r /usr/share/proj/* /opt/conda/envs/mcass_kaz/share/proj/ || true; fi && \
+    if [ -d /usr/share/gdal ]; then cp -r /usr/share/gdal/* /opt/conda/envs/mcass_kaz/share/gdal/ || true; fi"
 
 # Copy the rest of the application
 COPY . /app/
@@ -67,4 +69,4 @@ COPY . /app/
 EXPOSE 5007
 
 # Set the default command to run the Panel dashboard
-CMD ["panel", "serve", "/app/dashboard/snowmapper.py", "--port", "5007", "--allow-websocket-origin=kaz.snowmapper.ch", "--allow-websocket-origin=0.0.0.0", "--address", "0.0.0.0"]
+CMD ["bash", "-c", "source activate mcass_kaz && panel serve /app/dashboard/snowmapper.py --port 5007 --allow-websocket-origin=kaz.snowmapper.ch --allow-websocket-origin=0.0.0.0 --address 0.0.0.0"]
