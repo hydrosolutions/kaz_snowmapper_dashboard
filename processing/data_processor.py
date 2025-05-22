@@ -718,6 +718,150 @@ class SnowDataPipeline:
             self.logger.error(f"Error deleting old files: {e}")
             raise
 
+    async def process_specific_date(self, var_name: str, target_date: datetime):
+        """Process a variable for a specific historical date and save with date appendix.
+        
+        Args:
+            var_name: Variable name to process (e.g., 'hs')
+            target_date: The specific date to process
+            
+        Returns:
+            bool: True if processing was successful, False otherwise
+        """
+        self.logger.info(f"Processing {var_name} for specific date: {target_date.strftime('%Y-%m-%d')}")
+        
+        try:
+            # Get data for the specific date
+            data = await self.data_manager.get_data_for_date(var_name, target_date)
+            if data is None:
+                self.logger.error(f"No data available for {var_name} on {target_date.strftime('%Y-%m-%d')}")
+                return False
+                
+            # Process the file
+            processed_data = self._process_single_file(data, var_name)
+            
+            # Rename variable to match the expected naming convention
+            processed_data = processed_data.rename({var_name: f"{var_name}_time_series"})
+            
+            # Add metadata
+            processed_data.attrs['reference_date'] = target_date.strftime('%Y-%m-%d')
+            processed_data.attrs['processing_date'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            processed_data.attrs['historical_date'] = target_date.strftime('%Y-%m-%d')
+            
+            # Save the processed data with date in filename
+            date_str = target_date.strftime('%Y%m%d')
+            self._save_processed_data_with_date(processed_data, var_name, date_str)
+            
+            return True
+        except Exception as e:
+            self.logger.error(f"Error processing {var_name} for date {target_date.strftime('%Y-%m-%d')}: {e}")
+            self.logger.exception("Detailed error:")
+            return False
+        finally:
+            # Clean up
+            if 'data' in locals() and data is not None:
+                data.close()
+
+    def _save_processed_data_with_date(self, ds: xr.Dataset, var_name: str, date_str: str):
+        """Save processed data in Zarr format with date in filename."""
+        self.logger.debug(f"=== _save_processed_data_with_date ...")
+        output_path = Path(self.config['paths']['output_dir']) / f"{var_name}_processed_{date_str}.zarr"
+        
+        # Create a copy of the dataset
+        ds_fixed = ds.copy()
+        
+        # Set CRS variable
+        ds_fixed['crs'] = xr.DataArray(
+            data=0,  # Placeholder value
+            attrs={
+                'spatial_ref': 'PROJCS["WGS 84 / Pseudo-Mercator",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Mercator_1SP"],PARAMETER["central_meridian",0],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["X",EAST],AXIS["Y",NORTH],EXTENSION["PROJ4","+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +wktext +no_defs"],AUTHORITY["EPSG","3857"]]',
+                'grid_mapping_name': 'mercator',
+                'epsg_code': 'EPSG:3857'
+            }
+        )
+        
+        # Update coordinate attributes
+        ds_fixed['x'].attrs.update({
+            'units': 'meters',
+            'standard_name': 'projection_x_coordinate',
+            'axis': 'X'
+        })
+        ds_fixed['y'].attrs.update({
+            'units': 'meters',
+            'standard_name': 'projection_y_coordinate',
+            'axis': 'Y'
+        })
+        
+        # Set proper encoding
+        compressor = Blosc(cname='lz4', clevel=5, shuffle=1)
+        
+        # Prepare encoding
+        encoding = {}
+        encoding['crs'] = {
+            'chunks': None,  # Scalar variable
+            'compressor': compressor, 
+        }
+        
+        # Encode the time series variable
+        var_time_series = f"{var_name}_time_series"
+        if var_time_series in ds_fixed.data_vars:
+            encoding[var_time_series] = {
+                'chunks': (1, 500, 500),  # time, lat, lon
+                'compressor': compressor 
+            }
+        
+        # Encode coordinates
+        encoding.update({
+            'x': {'chunks': -1, 'compressor': compressor },
+            'y': {'chunks': -1, 'compressor': compressor },
+            'lon': {'chunks': -1, 'compressor': compressor },
+            'lat': {'chunks': -1, 'compressor': compressor },
+            'time': {'chunks': -1, 'compressor': compressor },
+            'region': {'chunks': -1, 'compressor': compressor }
+        })
+        
+        # Save to zarr format
+        self.logger.debug(f"Starting zarr write operation for historical date...")
+        ds_fixed.to_zarr(output_path, mode='w', encoding=encoding, consolidated=True)
+        self.logger.info(f"Saved historical data to {output_path}")
+        self.logger.debug(f"... _save_processed_data_with_date ===")
+
+async def process_historical_dates(dates: list, variables: list = None):
+    """Process specific historical dates for the given variables.
+    
+    Args:
+        dates: List of datetime objects to process
+        variables: List of variable names to process. If None, all variables are processed.
+        
+    Returns:
+        List of tuples (var_name, date, success) indicating processing results
+    """
+    env_setup = EnvironmentSetup()
+    config = env_setup.get_config()
+    logger = env_setup.get_logger('historical')
+    
+    logger.info(f"Processing historical dates: {', '.join(d.strftime('%Y-%m-%d') for d in dates)}")
+    
+    pipeline = SnowDataPipeline(env_setup)
+    
+    # If no variables specified, process all available variables
+    if variables is None:
+        variables = pipeline.data_manager.VARIABLES
+    
+    results = []
+    
+    for var_name in variables:
+        logger.info(f"Processing variable: {var_name}")
+        for date in dates:
+            success = await pipeline.process_specific_date(var_name, date)
+            results.append((var_name, date, success))
+    
+    # Log summary
+    successes = sum(1 for _, _, success in results if success)
+    total = len(results)
+    logger.info(f"Historical processing completed: {successes}/{total} successful")
+    
+    return results
 
 async def run_text_file_pipeline(config: Dict) -> Dict:
     """Run the text file pipeline with the given configuration."""
@@ -745,6 +889,7 @@ async def run_text_file_pipeline(config: Dict) -> Dict:
 
 async def main():
     """Main function to run the pipeline."""
+
     try:
         # Setting up the environment
         env_setup = EnvironmentSetup()
@@ -771,5 +916,58 @@ async def main():
         raise
 
 if __name__ == "__main__":
+    """
+    Data Processor Command Line Interface
+    
+    This script processes snow data for visualization in the KAZ Snowmapper Dashboard.
+    Running without arguments processes the latest data for all variables.
+    
+    Command-line Arguments:
+        --historical, -hist : Specific dates to process in YYYY-MM-DD format
+            Process snow data for specific historical dates instead of the most recent data.
+            Multiple dates can be provided, separated by spaces.
+            Example: --historical 2024-12-15 2025-01-15 2025-02-15
+        
+        --variables, -vars : Variables to process
+            Limit processing to specific variables (e.g., 'hs', 'swe').
+            If not specified, all available variables will be processed.
+            Example: --variables hs swe
+    
+    Examples:
+        # Process latest data for all variables (standard operation)
+        python data_processor.py
+        
+        # Process three specific historical dates for all variables
+        python data_processor.py --historical 2025-01-15 2025-02-15 2025-03-15
+        
+        # Process one historical date for specific variables
+        python data_processor.py -hist 2025-01-15 -vars hs
+        
+        # Process multiple dates for multiple variables
+        python data_processor.py -hist 2025-01-15 2025-02-15 -vars hs swe
+    
+    Output:
+        Processed files will be saved in the configured output directory
+        with filenames including the date for historical processing:
+        Example: hs_processed_20250115.zarr
+    """
+    
+    import argparse
     import asyncio
-    asyncio.run(main())
+    
+    parser = argparse.ArgumentParser(description="Process snow data for visualization")
+    parser.add_argument("--historical", "-hist", nargs="+", help="Specific dates to process in YYYY-MM-DD format")
+    parser.add_argument("--variables", "-vars", nargs="+", help="Variables to process (default: all)")
+    args = parser.parse_args()
+    
+    if args.historical:
+        try:
+            # Parse dates
+            dates = [datetime.strptime(date_str, '%Y-%m-%d') for date_str in args.historical]
+            asyncio.run(process_historical_dates(dates, args.variables))
+        except ValueError as e:
+            print(f"Error parsing dates: {e}")
+            print("Please provide dates in YYYY-MM-DD format")
+    else:
+        # Run normal processing
+        asyncio.run(main())
