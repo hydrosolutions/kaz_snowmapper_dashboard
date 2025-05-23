@@ -58,16 +58,10 @@ visualization:
   upscale_factor: 2.0
 
 demo: 
-  demo_mode_enabled: false
-  demo_start_date: "2025-03-10"
-  demo_end_date: "2025-03-20"
-  demo_data_path: ${DEMO_DATA_PATH}
-  demo_file_prefix: 
-    HS: "HS"
-    SWE: "SWE"
-    ROF: "ROF"
-  demo_file_date_format: "%Y%m%d"
-  demo_no_data_message: "Demo data not available for selected date"
+  demo_dates:
+    - "2024-03-10"
+    - "2024-03-20"
+    - "2024-04-01"
 
 # -- Dashboard -- #
 # Map settings

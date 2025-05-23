@@ -149,22 +149,30 @@ class SnowMapViewer:
         self.mask_gdf_wgs = gpd.read_file(mask_path)
         self.mask_gdf_wgs = spd.GeoDataFrame(self.mask_gdf_wgs)
 
-    def read_zarr(self, var_name: str) -> Optional[xr.Dataset]:
+    def read_zarr(self, var_name: str, historical_date: str = None) -> Optional[xr.Dataset]:
         """Read Zarr dataset with simple caching."""
         var_name = str(var_name)
-        zarr_path = self.data_dir / f"{var_name}_processed.zarr"
+        # Construct path differently based on whether a historical date is provided
+        if historical_date:
+            # Convert date string to date format used in filename (YYYYMMDD)
+            date_suffix = historical_date.replace('-', '')
+            zarr_path = self.data_dir / f"{var_name}_processed_{date_suffix}.zarr"
+            cache_key = f"{var_name}_{date_suffix}"  # Use different cache key for historical data
+        else:
+            zarr_path = self.data_dir / f"{var_name}_processed.zarr"
+            cache_key = var_name
 
         self.logger.debug(f"Attempting to read Zarr file: {zarr_path}")
 
         # Check cache with validation
-        if var_name in self._cached_data:
-            timestamp, data = self._cached_data[var_name]
+        if cache_key in self._cached_data:
+            timestamp, data = self._cached_data[cache_key]
             if (datetime.now() - timestamp).seconds < 3600 and data is not None:  # 1 hour cache
-                self.logger.debug(f"Using cached data for {var_name}")
+                self.logger.debug(f"Using cached data for {cache_key}")
                 return data
             else:
-                self.logger.debug(f"Removing invalid cache entry for {var_name}")
-                del self._cached_data[var_name]
+                self.logger.debug(f"Removing invalid cache entry for {cache_key}")
+                del self._cached_data[cache_key]
 
         try:
             if not zarr_path.exists():
@@ -203,24 +211,25 @@ class SnowMapViewer:
             #ds = ds.drop_vars('crs')
 
             if ds is not None:
-                self._cached_data[var_name] = (datetime.now(), ds)
-                self.logger.debug(f"Successfully read Zarr file for {var_name}")
+                self._cached_data[cache_key] = (datetime.now(), ds)
+                self.logger.debug(f"Successfully read Zarr file for {cache_key}")
                 return ds
             else:
                 self.logger.error(f"Failed to read data from {zarr_path}")
                 return None
 
         except Exception as e:
-            self.logger.error(f"Error reading Zarr file for {var_name}: {e}")
+            self.logger.error(f"Error reading Zarr file for {cache_key}: {e}")
             self.logger.debug(f"Attempted path: {zarr_path}")
             return None
 
-    def get_available_times(self, var_name: str, data_type: str = 'forecast') -> list:
+    def get_available_times(self, var_name: str, data_type: str = 'forecast', 
+                            historical_date: str = None) -> list:
         """Get available time steps for a variable and data type."""
         var_name = str(var_name)
-        self.logger.debug(f"Getting available times for {var_name}, type: {data_type}")
+        self.logger.debug(f"Getting available times for {var_name}, type: {data_type}, historical_date: {historical_date}")
 
-        ds = self.read_zarr(var_name)
+        ds = self.read_zarr(var_name, historical_date)
         if ds is None:
             self.logger.warning(f"No dataset found for variable: {var_name}")
             return []
@@ -489,7 +498,8 @@ class SnowMapViewer:
         return contours
 
     def create_map(self, var_name: str, time_idx: datetime, data_type: str = 'accumulated',
-                   basemap: str = 'CartoDB Positron', opacity: float = 0.7) -> gv.Image:
+                   basemap: str = 'CartoDB Positron', opacity: float = 0.7, 
+                   historical_date: str = None) -> gv.Image:
         """Create a map visualization with variable overlay."""
         self.logger.debug(f"Creating map for {var_name}, {time_idx}, {data_type}, {basemap}, {opacity}")
         try:
@@ -507,9 +517,8 @@ class SnowMapViewer:
                 alpha=1,
             )
 
-
             self.logger.debug(f"Reading Zarr data for {var_name}")
-            ds = self.read_zarr(var_name)
+            ds = self.read_zarr(var_name, historical_date)
             if ds is None:
                 self.logger.error("Could not read dataset")
                 return map_view  # Return just the base map if data can't be loaded
@@ -657,6 +666,8 @@ class SnowMapDashboard(param.Parameterized):
         step=0.1,
         doc="Opacity of the overlay layer"
     )
+    # Add a selector for historical demo dates (for map viz.)
+    historical_date = param.Selector(default=None, objects=[None, "2024-03-10", "2024-03-20", "2024-04-01"])
     # Climatology variable parameter for climatology plot
     climatology_variable = param.Selector(default='SWE', objects=['SWE', 'HS', 'ROF'])
     
@@ -667,6 +678,14 @@ class SnowMapDashboard(param.Parameterized):
 
         # Initialize data freshness manager
         self.data_freshness_manager = DataFreshnessManager()
+
+        # Initialize demo dates from configuration
+        demo_dates = config.get('demo', {}).get('demo_dates', [])
+        # Add None as the first option (for operational data)
+        demo_date_options = [None] + demo_dates
+        
+        # Update the historical_date parameter with options from config
+        self.param.historical_date.objects = demo_date_options
 
         # Set up variable selector with None option
         #variables = ['None'] + list(config['variables'].keys())
@@ -708,6 +727,7 @@ class SnowMapDashboard(param.Parameterized):
 
         # Calculate relative days from reference date
         days_available = [(t - self.reference_date).days for t in times]
+        self.logger.info(f"Days available for {var_name} with historical_date={self.historical_date}: {sorted(days_available)}")
 
         # Store the time bounds
         self.time_bounds = [days_available[0], days_available[-1]]
@@ -764,10 +784,10 @@ class SnowMapDashboard(param.Parameterized):
         """Get the actual datetime based on the current offset."""
         return self.reference_date + timedelta(days=self.time_offset)
 
-    @param.depends('variable', 'data_type', 'time_offset', 'basemap', 'opacity')
+    @param.depends('variable', 'data_type', 'time_offset', 'basemap', 'opacity', 'historical_date')
     def view(self):
         """Create the map view."""
-        logger.debug(f"Creating map view for {self.variable}, {self.data_type}, {self.time_offset}")
+        logger.debug(f"Creating map view for {self.variable}, {self.data_type}, {self.time_offset}, historical_date={self.historical_date}")
         if self.variable == 'None':
             # Return only the basemap without variable overlay
             return self.viewer.create_base_map(self.basemap)
@@ -780,7 +800,8 @@ class SnowMapDashboard(param.Parameterized):
                 current_time,
                 self.data_type,
                 self.basemap,
-                self.opacity
+                self.opacity, 
+                self.historical_date
             )
 
     def get_data_type_label(self, data_type: str) -> str:
@@ -1069,6 +1090,21 @@ dashboard = SnowMapDashboard(
     config=config
 )
 
+# Create historical date selector with options from config
+demo_dates = config.get('demo', {}).get('demo_dates', [])
+
+# Create options dictionary with 'Operational (Latest)' for None
+historical_options = {_('Operational (Latest)'): None}
+# Add each demo date as an option
+for date in demo_dates:
+    historical_options[date] = date
+
+historical_date_selector = pn.widgets.Select(
+    name=_('Historical Demo Data'),
+    options=historical_options,
+    value=None
+)
+
 # Create variable selector
 variable_selector = pn.widgets.Select(
     name=_('Variable'),
@@ -1116,17 +1152,44 @@ opacity_slider = pn.widgets.FloatSlider(
 )
 
 # Link controls
+historical_date_selector.link(dashboard, value='historical_date')
 variable_selector.link(dashboard, value='variable')
 data_type_selector.link(dashboard, value='data_type')
 basemap_selector.link(dashboard, value='basemap')
 opacity_slider.link(dashboard, value='opacity')
 time_slider.link(dashboard, value='time_offset')
 
+# After defining historical_date_selector
+# Update the historical date change handler to adjust the reference date
+def update_on_historical_date_change(event):
+    """Update reference date and time bounds when historical date changes"""
+    logger.debug(f"Historical date changed to: {event.new}")
+    
+    # Update reference date based on the historical date
+    if event.new:  # If a historical date is selected
+        # Convert string date to datetime
+        dashboard.reference_date = datetime.strptime(event.new, '%Y-%m-%d')
+        logger.debug(f"Reference date updated to historical date: {dashboard.reference_date}")
+    else:  # If switching back to operational
+        # Reset to today
+        dashboard.reference_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        logger.debug(f"Reference date reset to today: {dashboard.reference_date}")
+    
+    # Update time bounds with the new reference date
+    dashboard._update_time_bounds()
+    
+    # Update time slider name to reflect the new reference date
+    time_slider.name = f'Смещение по дням от {dashboard.reference_date.strftime("%Y-%m-%d")}'
+
+historical_date_selector.param.watch(update_on_historical_date_change, 'value')
+
 # Create dynamic control panel
 def get_control_panel(variable):
     base_controls = pn.Column(
         pn.pane.Markdown(_("### Map Controls")),
         variable_selector,
+        # Only show historical date selector if demo dates are configured
+        *([historical_date_selector] if demo_dates else []),
         pn.pane.Markdown(_("Select base map"), margin=(0, 0, -10, 10)), #(top, right, bottom, left)
         basemap_selector,
     )
@@ -1253,6 +1316,17 @@ template.config.raw_css.append("""
 }
 """)
 
+# Add a warning in case we're viewing historical data
+def historical_data_indicator(historical_date):
+    if historical_date:
+        return pn.pane.Alert(
+            f"⚠️ Viewing historical demo data from {historical_date}. This is not current operational data.",
+            alert_type='warning',
+            sizing_mode='stretch_width'
+        )
+    return pn.pane.HTML("")
+historical_data_indicator_bind = pn.bind(historical_data_indicator, dashboard.param.historical_date)
+
 # Create map pane to handle map sizing
 map_pane = pn.pane.HoloViews(
     dashboard.view,
@@ -1278,6 +1352,7 @@ climatology_pane = pn.pane.panel(
 # Creating tabs 
 map_tab = pn.Column(
     dashboard.data_freshness_manager.get_warning_component(),
+    historical_data_indicator_bind, 
     map_pane,
     sizing_mode='stretch_width',
     height_policy='fit', 
