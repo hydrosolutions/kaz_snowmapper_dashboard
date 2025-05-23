@@ -88,6 +88,7 @@ variables:
     new_snow_colormap: ['#cdffcd', '#99f0b2', '#53bd9f', '#3296b4', '#0670b0', '#054f8c', '#610432', '#4d020f']
     min_value: 0
     max_value: 10
+    convert_to_cm: true
   swe:
     name: "snow_water_equivalent"
     figure_title: "Снегозапасы"  # "Snow Water Equivalent"

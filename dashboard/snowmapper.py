@@ -737,10 +737,15 @@ class SnowMapDashboard(param.Parameterized):
         self.logger.debug(f"Reference date: {self.reference_date}")
         self.logger.debug(f"Days available: {days_available}")
 
-        self.data_freshness_manager.update_warning_visibility(
-            self.time_bounds,
-            self.config
-        )
+        # Only show freshness warning for operational data, not historical demo data
+        if self.historical_date is None:
+            self.data_freshness_manager.update_warning_visibility(
+                self.time_bounds,
+                self.config
+            )
+        else:
+            # Hide warning when viewing historical data
+            self.data_freshness_manager.set_warning_visibility(False)
 
         # If there is no overlap of days available with the slider bounds,
         # it means we have no data for the current time offset.
@@ -1349,9 +1354,19 @@ climatology_pane = pn.pane.panel(
     #max_width=800,
 )
 
+# Create a function that conditionally returns the warning component
+def get_conditional_warning(historical_date):
+    """Return the warning component only when not viewing historical data"""
+    if historical_date is None:
+        return dashboard.data_freshness_manager.get_warning_component()
+    return pn.pane.HTML("")  # Return empty pane when viewing historical data
+
+# Bind the function to the historical_date parameter
+conditional_warning = pn.bind(get_conditional_warning, dashboard.param.historical_date)
+
 # Creating tabs 
 map_tab = pn.Column(
-    dashboard.data_freshness_manager.get_warning_component(),
+    conditional_warning,
     historical_data_indicator_bind, 
     map_pane,
     sizing_mode='stretch_width',
@@ -1360,7 +1375,7 @@ map_tab = pn.Column(
     css_classes=['main-content']
 )
 climatology_tab = pn.Column(
-    dashboard.data_freshness_manager.get_warning_component(),
+    conditional_warning,
     climatology_pane,
     sizing_mode='stretch_both',
     margin=10,

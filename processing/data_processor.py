@@ -739,18 +739,55 @@ class SnowDataPipeline:
                 
             # Process the file
             processed_data = self._process_single_file(data, var_name)
-            
-            # Rename variable to match the expected naming convention
-            processed_data = processed_data.rename({var_name: f"{var_name}_time_series"})
-            
+            self.logger.debug(f"Processed data shape: {processed_data[var_name].shape}")
+        
+            # See how many time steps we have
+            num_time_steps = processed_data.sizes['time']
+            forecast_horizon = min(num_time_steps, self.config['dashboard']['day_slider_max'])
+        
+            # Create proper time coordinates for forecast period based on historical date
+            forecast_times = [target_date + timedelta(days=i) for i in range(forecast_horizon)]
+        
+            # Take first forecast_horizon time steps and assign proper time coordinates
+            forecast_data = (processed_data
+                            .isel(time=slice(0, forecast_horizon))
+                            .assign_coords(time=forecast_times))
+            self.logger.debug(f"Forecast data shape: {forecast_data[var_name].shape}")
+
+            # Create a copy for calculating accumulated differences
+            forecast_copy = forecast_data.copy(deep=True)
+        
+            # Take the difference between time steps to get new snowfall
+            forecast_copy[var_name] = forecast_copy[var_name].diff(dim='time', n=1)
+
+            # Only keep values >= 0
+            forecast_copy[var_name] = forecast_copy[var_name].where(forecast_copy[var_name] >= 0)
+        
+            # Calculate accumulations with same time coordinates
+            accumulated = forecast_copy.copy(deep=True)
+            accumulated[var_name] = (accumulated[var_name].cumsum(dim='time')
+                          .assign_coords(time=forecast_times))
+        
+            # Rename variables for forecast and accumulated
+            forecast_data = forecast_data.rename({var_name: f"{var_name}_time_series"})
+            accumulated = accumulated.rename({var_name: f"{var_name}_accumulated"})
+        
+            # Create the combined dataset
+            combined_data = xr.merge([
+                forecast_data,
+                accumulated
+            ], join='outer')
+        
             # Add metadata
-            processed_data.attrs['reference_date'] = target_date.strftime('%Y-%m-%d')
-            processed_data.attrs['processing_date'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            processed_data.attrs['historical_date'] = target_date.strftime('%Y-%m-%d')
-            
+            combined_data.attrs['reference_date'] = target_date.strftime('%Y-%m-%d')
+            combined_data.attrs['processing_date'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            combined_data.attrs['forecast_start'] = forecast_times[0].strftime('%Y-%m-%d')
+            combined_data.attrs['forecast_end'] = forecast_times[-1].strftime('%Y-%m-%d')
+            combined_data.attrs['historical_date'] = target_date.strftime('%Y-%m-%d')
+        
             # Save the processed data with date in filename
             date_str = target_date.strftime('%Y%m%d')
-            self._save_processed_data_with_date(processed_data, var_name, date_str)
+            self._save_processed_data_with_date(combined_data, var_name, date_str)
             
             return True
         except Exception as e:
