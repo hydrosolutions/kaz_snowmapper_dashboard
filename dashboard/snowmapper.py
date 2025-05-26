@@ -248,6 +248,7 @@ class SnowMapViewer:
             # Convert numpy datetime64 to Python datetime
             times = [pd.Timestamp(t).to_pydatetime() for t in times]
             self.logger.debug(f"Found {len(times)} timestamps for {var_name}")
+            self.logger.debug(f"Available times: {times}")
             return sorted(times)
 
         except Exception as e:
@@ -362,14 +363,21 @@ class SnowMapViewer:
         small_threshold : float
             Threshold below which to use more decimal places
         """
-        return {
-            level: (
-                f'{int(level)}' if level < small_threshold
-                else f'{level:.1f}' if level < 10
-                else f'{int(level)}'
-            )
-            for level in color_levels
-        }
+        self.logger.debug(f"Creating label overrides for color levels: {color_levels}")
+        
+        result = {}
+        for level in color_levels:
+            if level < small_threshold:
+                result[level] = '0'
+            elif level < 10:
+                # Force fixed-point notation with one decimal place
+                result[level] = f'{level:.1f}'
+            else:
+                # For larger values, show as integers
+                result[level] = f'{int(level)}'
+        
+        self.logger.debug(f"Created label overrides: {result}")
+        return result
 
     def create_custom_colormap(self, var_config, n_colors):
         """
@@ -458,21 +466,38 @@ class SnowMapViewer:
         else:
             levels = var_config['new_snow_color_levels']
 
+        # Special handling for HS (snow height) - convert to cm for display
+        display_levels = levels.copy()
+        display_units = var_config['units']
+    
+        if var_config['file_prefix'] == 'HS' and var_config['convert_to_cm']:
+            # Convert display levels from m to cm
+            display_levels = [level * 100 for level in levels]
+            display_units = "см"  # cm in Russian
+        
         # Set lowest level to 0 if it's very close to zero for better display
         colors = self.create_custom_colormap(var_config, len(levels))
-        levels_show = levels
-        if levels_show[0] <= 0.005:
-            levels_show[0] = 0.0
+        
+        # Label overrides for well readable colorbar labels
+        label_overrides = {}
+        for level, display_level in zip(levels, display_levels):
+            # Use the level as the key (the position on the colorbar)
+            if display_level < 0.01:
+                label_overrides[level] = '0'
+            elif display_level < 1.0:
+                # For very small cm values (<1), use one decimal place
+                label_overrides[level] = f'{display_level:.1f}'
+            else:
+                # For larger cm values, show as integers
+                label_overrides[level] = f'{int(display_level)}'
+            
+        self.logger.debug(f"Color levels: {levels}")
+        self.logger.debug(f"Display levels: {display_levels}")
+        self.logger.debug(f"Label overrides: {label_overrides}")
 
         # Create a color mapper for the contours
         from bokeh.models import LinearColorMapper
         color_mapper = LinearColorMapper(palette=colors, low=levels[0], high=levels[-1])
-
-        # print debug information
-        self.logger.debug(f"Levels: {levels}")
-        self.logger.debug(f"Colors: {colors}")
-        self.logger.debug(f"type of colors: {type(colors)}")
-        self.logger.debug(f"Color mapper: {color_mapper}")
 
         contours = hv.operation.contours(
             raster,
@@ -484,8 +509,8 @@ class SnowMapViewer:
             color_levels=levels,  # Explicitly set the levels
             colorbar_opts={
                 'ticker': FixedTicker(ticks=levels),
-                'major_label_overrides': self.create_label_overrides(levels_show),
-                'title': f"{var_config['figure_title']} ({var_config['units']})"
+                'major_label_overrides': label_overrides,
+                'title': f"{var_config['figure_title']} ({display_units})"
             },
             colorbar_position='top',
             line_color=None,
@@ -704,19 +729,27 @@ class SnowMapDashboard(param.Parameterized):
         self.reference_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         self._update_time_bounds()
         #self.data_freshness_manager.update_warning_visibility(self.param.time_offset.bounds, self.config)
+        # Watch for changes in dashboard.time_offset and update the slider
+        self.param.watch(self._update_time_slider, 'time_offset')
+
+    def _update_time_slider(self, event):
+        """Update the time slider widget when time_offset changes."""
+        time_slider.value = event.new
+        time_slider.start = self.param.time_offset.bounds[0]
+        time_slider.end = self.param.time_offset.bounds[1]
 
     def get_date_label(offset: int) -> str:
         date = dashboard.reference_date + timedelta(days=offset)
         return date.strftime("%a")
 
-    @param.depends('data_type')
+    @param.depends('data_type', 'historical_date')
     def _update_time_bounds(self):
         """Update time slider bounds based on data availability."""
         if self.variable == 'None':
             return
 
         var_name = str(self.variable)
-        times = self.viewer.get_available_times(var_name, self.data_type)
+        times = self.viewer.get_available_times(var_name, self.data_type, self.historical_date)
 
         if not times:
             self.logger.warning("No times available")
@@ -777,6 +810,7 @@ class SnowMapDashboard(param.Parameterized):
                 else:
                     self.param.time_offset.bounds = (min_days, max(days_available))
                     self.time_offset = min_days
+            
             self.logger.debug(f"Time offset bounds: {self.param.time_offset.bounds}")
             self.logger.debug(f"Time offset: {self.time_offset}")
 
@@ -1109,6 +1143,36 @@ historical_date_selector = pn.widgets.Select(
     options=historical_options,
     value=None
 )
+# Link the historical date selector to the dashboard
+historical_date_selector.link(dashboard, value='historical_date')
+
+# Update the historical date change handler to adjust the reference date
+def update_on_historical_date_change(event):
+    """Update reference date and time bounds when historical date changes"""
+    logger.debug(f"Historical date changed to: {event.new}")
+    
+    # Update reference date based on the historical date
+    if event.new:  # If a historical date is selected
+        # Convert string date to datetime
+        dashboard.reference_date = datetime.strptime(event.new, '%Y-%m-%d')
+        logger.debug(f"Reference date updated to historical date: {dashboard.reference_date}")
+    else:  # If switching back to operational
+        # Reset to today
+        dashboard.reference_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        logger.debug(f"Reference date reset to today: {dashboard.reference_date}")
+    
+    # Update time bounds with the new reference date
+    dashboard._update_time_bounds()
+    
+    # Update time slider value and bounds
+    time_slider.value = dashboard.time_offset
+    time_slider.start = dashboard.param.time_offset.bounds[0]
+    time_slider.end = dashboard.param.time_offset.bounds[1]
+    
+    # Update time slider name to reflect the new reference date
+    time_slider.name = f'Смещение по дням от {dashboard.reference_date.strftime("%Y-%m-%d")}'
+
+historical_date_selector.param.watch(update_on_historical_date_change, 'value')
 
 # Create variable selector
 variable_selector = pn.widgets.Select(
@@ -1157,36 +1221,14 @@ opacity_slider = pn.widgets.FloatSlider(
 )
 
 # Link controls
-historical_date_selector.link(dashboard, value='historical_date')
 variable_selector.link(dashboard, value='variable')
 data_type_selector.link(dashboard, value='data_type')
 basemap_selector.link(dashboard, value='basemap')
 opacity_slider.link(dashboard, value='opacity')
 time_slider.link(dashboard, value='time_offset')
 
-# After defining historical_date_selector
-# Update the historical date change handler to adjust the reference date
-def update_on_historical_date_change(event):
-    """Update reference date and time bounds when historical date changes"""
-    logger.debug(f"Historical date changed to: {event.new}")
-    
-    # Update reference date based on the historical date
-    if event.new:  # If a historical date is selected
-        # Convert string date to datetime
-        dashboard.reference_date = datetime.strptime(event.new, '%Y-%m-%d')
-        logger.debug(f"Reference date updated to historical date: {dashboard.reference_date}")
-    else:  # If switching back to operational
-        # Reset to today
-        dashboard.reference_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        logger.debug(f"Reference date reset to today: {dashboard.reference_date}")
-    
-    # Update time bounds with the new reference date
-    dashboard._update_time_bounds()
-    
-    # Update time slider name to reflect the new reference date
-    time_slider.name = f'Смещение по дням от {dashboard.reference_date.strftime("%Y-%m-%d")}'
-
-historical_date_selector.param.watch(update_on_historical_date_change, 'value')
+# Trigger initial update to set the reference date correctly
+#update_on_historical_date_change()
 
 # Create dynamic control panel
 def get_control_panel(variable):

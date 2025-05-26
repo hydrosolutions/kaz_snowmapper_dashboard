@@ -744,9 +744,11 @@ class SnowDataPipeline:
             # See how many time steps we have
             num_time_steps = processed_data.sizes['time']
             forecast_horizon = min(num_time_steps, self.config['dashboard']['day_slider_max'])
+            self.logger.debug(f"Number of time steps: {num_time_steps}, Forecast horizon: {forecast_horizon}")
         
             # Create proper time coordinates for forecast period based on historical date
             forecast_times = [target_date + timedelta(days=i) for i in range(forecast_horizon)]
+            self.logger.debug(f"Forecast times: {forecast_times}")
         
             # Take first forecast_horizon time steps and assign proper time coordinates
             forecast_data = (processed_data
