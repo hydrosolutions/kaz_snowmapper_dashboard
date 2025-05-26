@@ -54,20 +54,15 @@ visualization:
   min_rof_threshold: 20  # in mm
   # Smoothing & upscaling factor for the data
   enable_optimization: true
-  smoothing_factor: 1.0
+  smoothing_factor: 4.0
   upscale_factor: 2.0
+  buffer_size: 12000  # Buffer in meters around mask (in km)
 
 demo: 
-  demo_mode_enabled: false
-  demo_start_date: "2025-03-10"
-  demo_end_date: "2025-03-20"
-  demo_data_path: ${DEMO_DATA_PATH}
-  demo_file_prefix: 
-    HS: "HS"
-    SWE: "SWE"
-    ROF: "ROF"
-  demo_file_date_format: "%Y%m%d"
-  demo_no_data_message: "Demo data not available for selected date"
+  demo_dates:
+    - "2024-03-10"
+    - "2024-03-20"
+    - "2024-04-01"
 
 # -- Dashboard -- #
 # Map settings
@@ -88,12 +83,13 @@ variables:
     units: "м"  #"m"
     # For 'time series' plot
     colormap: ['#cdffcd', '#99f0b2', '#53bd9f', '#3296b4', '#0670b0', '#054f8c', '#610432', '#4d020f']
-    color_levels: [0.001, 0.2, 0.5, 0.8, 1.2, 2.0, 3.0, 4.0, 7.0]  # in m
+    color_levels: [0.02, 0.1, 0.15, 0.2, 0.25, 0.3, 0.5, 1.0, 2.0]  # in m
     # For 'new snow' plot
-    new_snow_color_levels: [0.001, 0.1, 0.2, 0.3, 0.4, 0.6, 0.8, 1.0, 3.0]  # in m
+    new_snow_color_levels: [0.02, 0.1, 0.15, 0.2, 0.25, 0.3, 0.5, 1.0, 2.0]  # in m
     new_snow_colormap: ['#cdffcd', '#99f0b2', '#53bd9f', '#3296b4', '#0670b0', '#054f8c', '#610432', '#4d020f']
     min_value: 0
     max_value: 10
+    convert_to_cm: true
   swe:
     name: "snow_water_equivalent"
     figure_title: "Снегозапасы"  # "Snow Water Equivalent"
@@ -102,9 +98,9 @@ variables:
     units: "мм"  # "mm"
     # For 'time series' plot
     colormap: ['#f7fbff', '#deebf7', '#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#084594']  # "viridis_r"
-    color_levels: [0.001, 30, 60, 90, 150, 300, 500, 700, 1000]  # in mm
+    color_levels: [0.02, 10, 15, 20, 25, 30, 50, 100, 200]  # in mm
     # For 'new snow' plot
-    new_snow_color_levels: [0.001, 100, 200, 300, 400, 600, 800, 1000, 3000]  # in mm
+    new_snow_color_levels: [0.02, 10, 15, 20, 25, 30, 50, 100, 200]  # in mm
     new_snow_colormap: ['#cdffcd', '#99f0b2', '#53bd9f', '#3296b4', '#0670b0', '#054f8c', '#610432', '#4d020f']
     min_value: 0
     max_value: 200
@@ -115,8 +111,8 @@ variables:
     widget_short_name: "SMER"
     units: "мм"
     colormap: "YlOrRd"
-    color_levels: [0.001, 30, 60, 90, 150, 300, 500, 700, 1000]  # in mm
-    new_rof_color_levels: [0.001, 100, 200, 300, 400, 600, 800, 1000, 3000]  # in mm
+    color_levels: [0.02, 10, 15, 20, 25, 30, 50, 100, 200]  # in mm
+    new_rof_color_levels: [0.02, 10, 15, 20, 25, 30, 50, 100, 200]  # in mm
     new_rof_colormap: ['#cdffcd', '#99f0b2', '#53bd9f', '#3296b4', '#0670b0', '#054f8c', '#610432', '#4d020f']
     min_value: 0
     max_value: 4

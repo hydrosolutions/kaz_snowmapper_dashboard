@@ -198,7 +198,8 @@ class SnowDataPipeline:
 
         # Transform to a suitable projected CRS (UTM zone 42N for Kazakhstan)
         mask_projected = self.mask_gdf.to_crs(CRS.from_epsg(32642))
-        mask_buffered = mask_projected.buffer(11000)  # Buffer in meters (10km)
+        buffer_size = self.config['visualization'].get('buffer_size', 11000)  # default to 11000 if not set
+        mask_buffered = mask_projected.buffer(buffer_size)  # Buffer in meters (10km)
         mask_geographic = mask_buffered.to_crs(CRS.from_epsg(4326))
 
         # Create a mask using regionmask
@@ -244,6 +245,8 @@ class SnowDataPipeline:
             """Apply Gaussian smoothing to a 2D array."""
             return gaussian_filter(array, sigma=sigma)
 
+        smoothing_factor = self.config['visualization']['smoothing_factor']
+
         # Apply the smoothing function to each time step
         smoothed_data = xr.apply_ufunc(
             smooth_data,
@@ -251,12 +254,33 @@ class SnowDataPipeline:
             input_core_dims=[["lat", "lon"]],  # Process over 2D slices (lat, lon)
             output_core_dims=[["lat", "lon"]],  # Output is also 2D
             vectorize=True,  # Apply the function independently to each time step
-            kwargs={"sigma": 4},  # Pass the smoothing parameter
+            kwargs={"sigma": smoothing_factor},  # Pass the smoothing parameter
         )
         # Add crs attribute again
         # Add the CRS back as a variable to the smoothed data
         smoothed_data['crs'] = crs_var
         ds_clip = smoothed_data.copy()
+
+        upscale_factor = self.config['visualization']['upscale_factor']
+
+        # Apply upscaling if enabled
+        if self.config['visualization']['enable_optimization'] and upscale_factor > 1:
+            self.logger.debug(f"Upscaling data by factor of {upscale_factor}")
+    
+            # Get current dimensions
+            lat_vals = ds_clip.lat.values
+            lon_vals = ds_clip.lon.values
+    
+            # Create new coordinate arrays with higher resolution
+            new_lat_count = int(len(lat_vals) * upscale_factor)
+            new_lon_count = int(len(lon_vals) * upscale_factor)
+    
+            new_lat_vals = np.linspace(lat_vals.min(), lat_vals.max(), new_lat_count)
+            new_lon_vals = np.linspace(lon_vals.min(), lon_vals.max(), new_lon_count)
+    
+            # Interpolate to higher resolution grid
+            ds_clip = ds_clip.interp(lat=new_lat_vals, lon=new_lon_vals, method='linear')
+            self.logger.debug(f"Data upscaled from {len(lat_vals)}x{len(lon_vals)} to {new_lat_count}x{new_lon_count}")
 
         # If logger mode is set to debug, plot and save the masked data
         if self.logger.level == logging.DEBUG:
@@ -290,6 +314,18 @@ class SnowDataPipeline:
             "x": (("lon"), x_web[0, :]),
             "y": (("lat"), y_web[:, 0])
         })
+
+        # Re-apply the original mask (without buffer) to clip to exact boundaries
+        original_mask = regionmask.mask_3D_geopandas(
+            self.mask_gdf.to_crs(CRS.from_epsg(4326)),  # Use original mask without buffer
+            ds_clip.lon,
+            ds_clip.lat)
+
+        # Convert mask to binary
+        original_mask = original_mask == 1
+
+        # Apply the final mask
+        ds_clip = ds_clip.where(original_mask)
 
         # print the dimensions of the dataset
         self.logger.debug(f"Dimensions of dataset after processing: {ds_clip.dims}")
@@ -702,11 +738,50 @@ class SnowDataPipeline:
             # Get the date to compare against
             today = datetime.now()
 
+            # Get demo dates from config
+            demo_dates = []
+            if 'demo' in self.config and 'demo_dates' in self.config['demo']:
+                demo_dates = [datetime.strptime(date_str, '%Y-%m-%d') for date_str in self.config['demo']['demo_dates']]
+                self.logger.info(f"Preserving {len(demo_dates)} demo dates: {', '.join(self.config['demo']['demo_dates'])}")
+        
+            
             # Filter files older than the retention period
-            old_files = [
-                f for f in all_files
-                if (today - datetime.fromtimestamp(f.stat().st_mtime)).days > retention_days
-            ]
+            old_files = []
+            for f in all_files:
+                # Get file date from modification time
+                file_date = datetime.fromtimestamp(f.stat().st_mtime)
+                file_age = (today - file_date).days
+
+                # Check if file is old and not a demo date file
+                if file_age > retention_days:
+                    # Extract date from filename if possible (for files with date in name)
+                    is_demo_file = False
+                
+                    # Check file_date against demo dates (with 1 day tolerance)
+                    for demo_date in demo_dates:
+                        if abs((file_date.date() - demo_date.date()).days) <= 1:
+                            is_demo_file = True
+                            self.logger.debug(f"Preserving demo file: {f.name} (date: {file_date.date()})")
+                            break
+                
+                    # Also check filename for date pattern
+                    for demo_date in demo_dates:
+                        date_str = demo_date.strftime('%Y%m%d')
+                        if date_str in f.name:
+                            is_demo_file = True
+                            self.logger.debug(f"Preserving demo file: {f.name} (contains date: {date_str})")
+                            break
+                
+                    if not is_demo_file:
+                        old_files.append(f)
+
+            self.logger.info(f"Found {len(old_files)} files older than {retention_days} days to delete")
+            self.logger.debug(f"Old files: {[f.name for f in old_files]}")
+
+            if not old_files:
+                self.logger.info("No old files to delete")
+                return
+            
             # Delete old files
             for f in old_files:
                 f.unlink()
@@ -718,6 +793,189 @@ class SnowDataPipeline:
             self.logger.error(f"Error deleting old files: {e}")
             raise
 
+    async def process_specific_date(self, var_name: str, target_date: datetime):
+        """Process a variable for a specific historical date and save with date appendix.
+        
+        Args:
+            var_name: Variable name to process (e.g., 'hs')
+            target_date: The specific date to process
+            
+        Returns:
+            bool: True if processing was successful, False otherwise
+        """
+        self.logger.info(f"Processing {var_name} for specific date: {target_date.strftime('%Y-%m-%d')}")
+        
+        try:
+            # Get data for the specific date
+            data = await self.data_manager.get_data_for_date(var_name, target_date)
+            if data is None:
+                self.logger.error(f"No data available for {var_name} on {target_date.strftime('%Y-%m-%d')}")
+                return False
+                
+            # Process the file
+            processed_data = self._process_single_file(data, var_name)
+            self.logger.debug(f"Processed data shape: {processed_data[var_name].shape}")
+        
+            # See how many time steps we have
+            num_time_steps = processed_data.sizes['time']
+            forecast_horizon = min(num_time_steps, self.config['dashboard']['day_slider_max'])
+            self.logger.debug(f"Number of time steps: {num_time_steps}, Forecast horizon: {forecast_horizon}")
+        
+            # Create proper time coordinates for forecast period based on historical date
+            forecast_times = [target_date + timedelta(days=i) for i in range(forecast_horizon)]
+            self.logger.debug(f"Forecast times: {forecast_times}")
+        
+            # Take first forecast_horizon time steps and assign proper time coordinates
+            forecast_data = (processed_data
+                            .isel(time=slice(0, forecast_horizon))
+                            .assign_coords(time=forecast_times))
+            self.logger.debug(f"Forecast data shape: {forecast_data[var_name].shape}")
+
+            # Create a copy for calculating accumulated differences
+            forecast_copy = forecast_data.copy(deep=True)
+        
+            # Take the difference between time steps to get new snowfall
+            forecast_copy[var_name] = forecast_copy[var_name].diff(dim='time', n=1)
+
+            # Only keep values >= 0
+            forecast_copy[var_name] = forecast_copy[var_name].where(forecast_copy[var_name] >= 0)
+        
+            # Calculate accumulations with same time coordinates
+            accumulated = forecast_copy.copy(deep=True)
+            accumulated[var_name] = (accumulated[var_name].cumsum(dim='time')
+                          .assign_coords(time=forecast_times))
+        
+            # Rename variables for forecast and accumulated
+            forecast_data = forecast_data.rename({var_name: f"{var_name}_time_series"})
+            accumulated = accumulated.rename({var_name: f"{var_name}_accumulated"})
+        
+            # Create the combined dataset
+            combined_data = xr.merge([
+                forecast_data,
+                accumulated
+            ], join='outer')
+        
+            # Add metadata
+            combined_data.attrs['reference_date'] = target_date.strftime('%Y-%m-%d')
+            combined_data.attrs['processing_date'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            combined_data.attrs['forecast_start'] = forecast_times[0].strftime('%Y-%m-%d')
+            combined_data.attrs['forecast_end'] = forecast_times[-1].strftime('%Y-%m-%d')
+            combined_data.attrs['historical_date'] = target_date.strftime('%Y-%m-%d')
+        
+            # Save the processed data with date in filename
+            date_str = target_date.strftime('%Y%m%d')
+            self._save_processed_data_with_date(combined_data, var_name, date_str)
+            
+            return True
+        except Exception as e:
+            self.logger.error(f"Error processing {var_name} for date {target_date.strftime('%Y-%m-%d')}: {e}")
+            self.logger.exception("Detailed error:")
+            return False
+        finally:
+            # Clean up
+            if 'data' in locals() and data is not None:
+                data.close()
+
+    def _save_processed_data_with_date(self, ds: xr.Dataset, var_name: str, date_str: str):
+        """Save processed data in Zarr format with date in filename."""
+        self.logger.debug(f"=== _save_processed_data_with_date ...")
+        output_path = Path(self.config['paths']['output_dir']) / f"{var_name}_processed_{date_str}.zarr"
+        
+        # Create a copy of the dataset
+        ds_fixed = ds.copy()
+        
+        # Set CRS variable
+        ds_fixed['crs'] = xr.DataArray(
+            data=0,  # Placeholder value
+            attrs={
+                'spatial_ref': 'PROJCS["WGS 84 / Pseudo-Mercator",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Mercator_1SP"],PARAMETER["central_meridian",0],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["X",EAST],AXIS["Y",NORTH],EXTENSION["PROJ4","+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +wktext +no_defs"],AUTHORITY["EPSG","3857"]]',
+                'grid_mapping_name': 'mercator',
+                'epsg_code': 'EPSG:3857'
+            }
+        )
+        
+        # Update coordinate attributes
+        ds_fixed['x'].attrs.update({
+            'units': 'meters',
+            'standard_name': 'projection_x_coordinate',
+            'axis': 'X'
+        })
+        ds_fixed['y'].attrs.update({
+            'units': 'meters',
+            'standard_name': 'projection_y_coordinate',
+            'axis': 'Y'
+        })
+        
+        # Set proper encoding
+        compressor = Blosc(cname='lz4', clevel=5, shuffle=1)
+        
+        # Prepare encoding
+        encoding = {}
+        encoding['crs'] = {
+            'chunks': None,  # Scalar variable
+            'compressor': compressor, 
+        }
+        
+        # Encode the time series variable
+        var_time_series = f"{var_name}_time_series"
+        if var_time_series in ds_fixed.data_vars:
+            encoding[var_time_series] = {
+                'chunks': (1, 500, 500),  # time, lat, lon
+                'compressor': compressor 
+            }
+        
+        # Encode coordinates
+        encoding.update({
+            'x': {'chunks': -1, 'compressor': compressor },
+            'y': {'chunks': -1, 'compressor': compressor },
+            'lon': {'chunks': -1, 'compressor': compressor },
+            'lat': {'chunks': -1, 'compressor': compressor },
+            'time': {'chunks': -1, 'compressor': compressor },
+            'region': {'chunks': -1, 'compressor': compressor }
+        })
+        
+        # Save to zarr format
+        self.logger.debug(f"Starting zarr write operation for historical date...")
+        ds_fixed.to_zarr(output_path, mode='w', encoding=encoding, consolidated=True)
+        self.logger.info(f"Saved historical data to {output_path}")
+        self.logger.debug(f"... _save_processed_data_with_date ===")
+
+async def process_historical_dates(dates: list, variables: list = None):
+    """Process specific historical dates for the given variables.
+    
+    Args:
+        dates: List of datetime objects to process
+        variables: List of variable names to process. If None, all variables are processed.
+        
+    Returns:
+        List of tuples (var_name, date, success) indicating processing results
+    """
+    env_setup = EnvironmentSetup()
+    config = env_setup.get_config()
+    logger = env_setup.get_logger('historical')
+    
+    logger.info(f"Processing historical dates: {', '.join(d.strftime('%Y-%m-%d') for d in dates)}")
+    
+    pipeline = SnowDataPipeline(env_setup)
+    
+    # If no variables specified, process all available variables
+    if variables is None:
+        variables = pipeline.data_manager.VARIABLES
+    
+    results = []
+    
+    for var_name in variables:
+        logger.info(f"Processing variable: {var_name}")
+        for date in dates:
+            success = await pipeline.process_specific_date(var_name, date)
+            results.append((var_name, date, success))
+    
+    # Log summary
+    successes = sum(1 for _, _, success in results if success)
+    total = len(results)
+    logger.info(f"Historical processing completed: {successes}/{total} successful")
+    
+    return results
 
 async def run_text_file_pipeline(config: Dict) -> Dict:
     """Run the text file pipeline with the given configuration."""
@@ -745,6 +1003,7 @@ async def run_text_file_pipeline(config: Dict) -> Dict:
 
 async def main():
     """Main function to run the pipeline."""
+
     try:
         # Setting up the environment
         env_setup = EnvironmentSetup()
@@ -771,5 +1030,58 @@ async def main():
         raise
 
 if __name__ == "__main__":
+    """
+    Data Processor Command Line Interface
+    
+    This script processes snow data for visualization in the KAZ Snowmapper Dashboard.
+    Running without arguments processes the latest data for all variables.
+    
+    Command-line Arguments:
+        --historical, -hist : Specific dates to process in YYYY-MM-DD format
+            Process snow data for specific historical dates instead of the most recent data.
+            Multiple dates can be provided, separated by spaces.
+            Example: --historical 2024-12-15 2025-01-15 2025-02-15
+        
+        --variables, -vars : Variables to process
+            Limit processing to specific variables (e.g., 'hs', 'swe').
+            If not specified, all available variables will be processed.
+            Example: --variables hs swe
+    
+    Examples:
+        # Process latest data for all variables (standard operation)
+        python data_processor.py
+        
+        # Process three specific historical dates for all variables
+        python data_processor.py --historical 2025-01-15 2025-02-15 2025-03-15
+        
+        # Process one historical date for specific variables
+        python data_processor.py -hist 2025-01-15 -vars hs
+        
+        # Process multiple dates for multiple variables
+        python data_processor.py -hist 2025-01-15 2025-02-15 -vars hs swe
+    
+    Output:
+        Processed files will be saved in the configured output directory
+        with filenames including the date for historical processing:
+        Example: hs_processed_20250115.zarr
+    """
+    
+    import argparse
     import asyncio
-    asyncio.run(main())
+    
+    parser = argparse.ArgumentParser(description="Process snow data for visualization")
+    parser.add_argument("--historical", "-hist", nargs="+", help="Specific dates to process in YYYY-MM-DD format")
+    parser.add_argument("--variables", "-vars", nargs="+", help="Variables to process (default: all)")
+    args = parser.parse_args()
+    
+    if args.historical:
+        try:
+            # Parse dates
+            dates = [datetime.strptime(date_str, '%Y-%m-%d') for date_str in args.historical]
+            asyncio.run(process_historical_dates(dates, args.variables))
+        except ValueError as e:
+            print(f"Error parsing dates: {e}")
+            print("Please provide dates in YYYY-MM-DD format")
+    else:
+        # Run normal processing
+        asyncio.run(main())
