@@ -315,6 +315,18 @@ class SnowDataPipeline:
             "y": (("lat"), y_web[:, 0])
         })
 
+        # Re-apply the original mask (without buffer) to clip to exact boundaries
+        original_mask = regionmask.mask_3D_geopandas(
+            self.mask_gdf.to_crs(CRS.from_epsg(4326)),  # Use original mask without buffer
+            ds_clip.lon,
+            ds_clip.lat)
+
+        # Convert mask to binary
+        original_mask = original_mask == 1
+
+        # Apply the final mask
+        ds_clip = ds_clip.where(original_mask)
+
         # print the dimensions of the dataset
         self.logger.debug(f"Dimensions of dataset after processing: {ds_clip.dims}")
 
