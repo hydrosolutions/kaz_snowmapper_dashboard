@@ -54,8 +54,9 @@ visualization:
   min_rof_threshold: 20  # in mm
   # Smoothing & upscaling factor for the data
   enable_optimization: true
-  smoothing_factor: 1.0
+  smoothing_factor: 4.0
   upscale_factor: 2.0
+  buffer_size: 5000  # Buffer in meters around mask (in km)
 
 demo: 
   demo_dates:

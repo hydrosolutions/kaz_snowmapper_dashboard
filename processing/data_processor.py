@@ -198,7 +198,8 @@ class SnowDataPipeline:
 
         # Transform to a suitable projected CRS (UTM zone 42N for Kazakhstan)
         mask_projected = self.mask_gdf.to_crs(CRS.from_epsg(32642))
-        mask_buffered = mask_projected.buffer(11000)  # Buffer in meters (10km)
+        buffer_size = self.config['visualization'].get('buffer_size', 11000)  # default to 11000 if not set
+        mask_buffered = mask_projected.buffer(buffer_size)  # Buffer in meters (10km)
         mask_geographic = mask_buffered.to_crs(CRS.from_epsg(4326))
 
         # Create a mask using regionmask
@@ -244,6 +245,8 @@ class SnowDataPipeline:
             """Apply Gaussian smoothing to a 2D array."""
             return gaussian_filter(array, sigma=sigma)
 
+        smoothing_factor = self.config['visualization']['smoothing_factor']
+
         # Apply the smoothing function to each time step
         smoothed_data = xr.apply_ufunc(
             smooth_data,
@@ -251,12 +254,33 @@ class SnowDataPipeline:
             input_core_dims=[["lat", "lon"]],  # Process over 2D slices (lat, lon)
             output_core_dims=[["lat", "lon"]],  # Output is also 2D
             vectorize=True,  # Apply the function independently to each time step
-            kwargs={"sigma": 4},  # Pass the smoothing parameter
+            kwargs={"sigma": smoothing_factor},  # Pass the smoothing parameter
         )
         # Add crs attribute again
         # Add the CRS back as a variable to the smoothed data
         smoothed_data['crs'] = crs_var
         ds_clip = smoothed_data.copy()
+
+        upscale_factor = self.config['visualization']['upscale_factor']
+
+        # Apply upscaling if enabled
+        if self.config['visualization']['enable_optimization'] and upscale_factor > 1:
+            self.logger.debug(f"Upscaling data by factor of {upscale_factor}")
+    
+            # Get current dimensions
+            lat_vals = ds_clip.lat.values
+            lon_vals = ds_clip.lon.values
+    
+            # Create new coordinate arrays with higher resolution
+            new_lat_count = int(len(lat_vals) * upscale_factor)
+            new_lon_count = int(len(lon_vals) * upscale_factor)
+    
+            new_lat_vals = np.linspace(lat_vals.min(), lat_vals.max(), new_lat_count)
+            new_lon_vals = np.linspace(lon_vals.min(), lon_vals.max(), new_lon_count)
+    
+            # Interpolate to higher resolution grid
+            ds_clip = ds_clip.interp(lat=new_lat_vals, lon=new_lon_vals, method='linear')
+            self.logger.debug(f"Data upscaled from {len(lat_vals)}x{len(lon_vals)} to {new_lat_count}x{new_lon_count}")
 
         # If logger mode is set to debug, plot and save the masked data
         if self.logger.level == logging.DEBUG:
@@ -702,11 +726,50 @@ class SnowDataPipeline:
             # Get the date to compare against
             today = datetime.now()
 
+            # Get demo dates from config
+            demo_dates = []
+            if 'demo' in self.config and 'demo_dates' in self.config['demo']:
+                demo_dates = [datetime.strptime(date_str, '%Y-%m-%d') for date_str in self.config['demo']['demo_dates']]
+                self.logger.info(f"Preserving {len(demo_dates)} demo dates: {', '.join(self.config['demo']['demo_dates'])}")
+        
+            
             # Filter files older than the retention period
-            old_files = [
-                f for f in all_files
-                if (today - datetime.fromtimestamp(f.stat().st_mtime)).days > retention_days
-            ]
+            old_files = []
+            for f in all_files:
+                # Get file date from modification time
+                file_date = datetime.fromtimestamp(f.stat().st_mtime)
+                file_age = (today - file_date).days
+
+                # Check if file is old and not a demo date file
+                if file_age > retention_days:
+                    # Extract date from filename if possible (for files with date in name)
+                    is_demo_file = False
+                
+                    # Check file_date against demo dates (with 1 day tolerance)
+                    for demo_date in demo_dates:
+                        if abs((file_date.date() - demo_date.date()).days) <= 1:
+                            is_demo_file = True
+                            self.logger.debug(f"Preserving demo file: {f.name} (date: {file_date.date()})")
+                            break
+                
+                    # Also check filename for date pattern
+                    for demo_date in demo_dates:
+                        date_str = demo_date.strftime('%Y%m%d')
+                        if date_str in f.name:
+                            is_demo_file = True
+                            self.logger.debug(f"Preserving demo file: {f.name} (contains date: {date_str})")
+                            break
+                
+                    if not is_demo_file:
+                        old_files.append(f)
+
+            self.logger.info(f"Found {len(old_files)} files older than {retention_days} days to delete")
+            self.logger.debug(f"Old files: {[f.name for f in old_files]}")
+
+            if not old_files:
+                self.logger.info("No old files to delete")
+                return
+            
             # Delete old files
             for f in old_files:
                 f.unlink()
