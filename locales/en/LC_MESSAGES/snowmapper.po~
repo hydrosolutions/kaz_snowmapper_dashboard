@@ -7,102 +7,49 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-05-27 13:18+0200\n"
+"POT-Creation-Date: 2024-12-04 23:52+0100\n"
 "PO-Revision-Date: 2024-12-04 23:52+0100\n"
 "Last-Translator: Beatrice Marti <dummy@dummy.com>\n"
 "Language-Team: English\n"
 "Language: en\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Type: text/plain; charset=ASCII\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
-"X-Language: en_CH\n"
-"X-Source-Language: en\n"
 
-#: dashboard/snowmapper.py:961
-msgid "Snow Water Equivalent (mm)"
-msgstr ""
-
-#: dashboard/snowmapper.py:962
-msgid "Snow Height (cm)"
-msgstr ""
-
-#: dashboard/snowmapper.py:963
-msgid "Runoff (mm)"
-msgstr ""
-
-#: dashboard/snowmapper.py:1005
-#, python-format
-msgid "Historical range (5% - 95%)"
-msgstr ""
-
-#: dashboard/snowmapper.py:1013 dashboard/snowmapper.py:1070
-msgid "Median (50%)"
-msgstr ""
-
-#: dashboard/snowmapper.py:1021 dashboard/snowmapper.py:1078
-msgid "Previous year"
-msgstr ""
-
-#: dashboard/snowmapper.py:1029 dashboard/snowmapper.py:1086
-msgid "Current year"
-msgstr ""
-
-#: dashboard/snowmapper.py:1038 dashboard/snowmapper.py:1095
-msgid "Forecast"
-msgstr ""
-
-#: dashboard/snowmapper.py:1176
-msgid "Operational (Latest)"
-msgstr ""
-
-#: dashboard/snowmapper.py:1182
-msgid "Historical Demo Data"
-msgstr ""
-
-#: dashboard/snowmapper.py:1219 dashboard/snowmapper.py:1300
+#: dashboard/snowmapper.py:779
 msgid "Variable"
 msgstr "Variable"
 
-#: dashboard/snowmapper.py:1229
+#: dashboard/snowmapper.py:789
 msgid "Data Type"
 msgstr "Data Type"
 
-#: dashboard/snowmapper.py:1250
+#: dashboard/snowmapper.py:810
 msgid "Base Map"
 msgstr "Base Map"
 
-#: dashboard/snowmapper.py:1256
+#: dashboard/snowmapper.py:816
 msgid "Layer Opacity"
 msgstr "Layer Opacity"
 
-#: dashboard/snowmapper.py:1276
+#: dashboard/snowmapper.py:833
 msgid "### Map Controls"
 msgstr "### Map Controls"
 
-#: dashboard/snowmapper.py:1280
+#: dashboard/snowmapper.py:835
 msgid "Select base map"
 msgstr "Select base map"
 
-#: dashboard/snowmapper.py:1287
+#: dashboard/snowmapper.py:842
 msgid "### Variable Controls"
 msgstr "### Variable Controls"
 
-#: dashboard/snowmapper.py:1331
-#, fuzzy
-msgid "### Climatology Controls"
-msgstr "### Variable Controls"
-
-#: dashboard/snowmapper.py:1337
+#: dashboard/snowmapper.py:854
 msgid "Snow Situation Kazakhstan"
 msgstr "Snow Situation Kazakhstan"
 
-#: dashboard/snowmapper.py:1529
-msgid "Language"
-msgstr ""
-
-#: dashboard/snowmapper.py:1569
-#, fuzzy
+#: dashboard/snowmapper.py:926
 msgid ""
 "\n"
 "    ### About this Dashboard\n"
@@ -110,17 +57,12 @@ msgid ""
 "    Data is updated daily and includes:\n"
 "    - Snow Height (HS) in meters\n"
 "    - Snow Water Equivalent (SWE) in millimeters\n"
-"    - Snow Melt & Excess Rain (SMER) in millimeters\n"
 "\n"
 "    To view daily accumulated forecasts of new snow, select the 'New snow' "
 "data type.\n"
 "    To view the simulated snow situation (past and forecast), select the "
 "'Snow situation' data type.\n"
 "\n"
-"    This dashboard is inspired by the snowmapps of the plattform whiterisk "
-"([https://whiterisk.ch/en/conditions/snow-maps/new_snow](https://whiterisk.ch/en/conditions/snow-maps/new_snow)). "
-"                   \n"
-"    \n"
 "    [Close]\n"
 "    "
 msgstr ""

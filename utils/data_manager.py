@@ -37,9 +37,13 @@ class DataManager:
         self.env = os.getenv('DASHBOARD_ENV', 'local')
         self.config = config
 
+        # Initialize variables from config instead of hardcoding
+        self.VARIABLES = self._init_variables_from_config()
+
         # Pring debugging info
         self.logger.debug(f"DataManager initialized in {self.env} environment")
         self.logger.debug(f"Config: {self.config}")
+        self.logger.debug(f"Initialized variables: {list(self.VARIABLES.keys())}")
 
         # Get cache directory from config
         self.cache_dir = Path(self.config['paths']['cache_dir'])
@@ -51,12 +55,45 @@ class DataManager:
 
         self.logger.info(f"DataManager initialized in {self.env} environment")
 
+    def _init_variables_from_config(self) -> Dict[str, DataVariable]:
+        """Initialize variables from configuration.
+        
+        Returns:
+            Dictionary mapping variable codes to DataVariable objects
+        """
+        variables = {}
+        
+        if 'variables' not in self.config:
+            self.logger.warning("No 'variables' section found in configuration, using defaults")
+            # Fallback to defaults if not in config
+            return {
+                'hs': DataVariable('snow_height', 'HS', 'mm'),
+                'swe': DataVariable('swe', 'SWE', 'mm'),
+                'rof': DataVariable('runoff', 'ROF', 'm3/s')
+            }
+            
+        for var_code, var_config in self.config['variables'].items():
+            name = var_config.get('name', var_code)
+            file_prefix = var_config.get('file_prefix', var_code.upper())
+            units = var_config.get('units', '')
+            
+            variables[var_code] = DataVariable(name, file_prefix, units)
+            self.logger.debug(f"Initialized variable {var_code}: {name} ({file_prefix}, {units})")
+            
+        return variables
+
     async def  get_data_for_date(self, variable: str, date: datetime) -> Optional[xr.Dataset]:
         """Get data for specific variable and date."""
         self.logger.debug(f"Getting data for {variable} on {date}")
+        
+        if variable not in self.VARIABLES:
+            self.logger.error(f"Unknown variable: {variable}. Available variables: {list(self.VARIABLES.keys())}")
+            return None
+            
         var_info = self.VARIABLES[variable]
         filename = f"{var_info.file_prefix}_{date.strftime('%Y%m%d')}.nc"
         data = await self._get_cached_or_download(filename)
+        
         if data is None:
             self.logger.warning(f"No data available for {variable} on {date}")
         else:
