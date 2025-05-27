@@ -694,7 +694,7 @@ class SnowMapDashboard(param.Parameterized):
     # Add a selector for historical demo dates (for map viz.)
     historical_date = param.Selector(default=None, objects=[None, "2024-03-10", "2024-03-20", "2024-04-01"])
     # Climatology variable parameter for climatology plot
-    climatology_variable = param.Selector(default='SWE', objects=['SWE', 'HS', 'ROF'])
+    climatology_variable = param.Selector(default='hs')
     
 
     def __init__(self, data_dir: Path, config: dict, **params):
@@ -855,6 +855,9 @@ class SnowMapDashboard(param.Parameterized):
         if var_name == 'None':
             return 'No variable overlay'
         var_config = self.config['variables'][var_name]
+        if var_name == 'hs' and var_config.get('convert_to_cm', False):
+            # Special case for HS (snow height) with convert_to_cm
+            return f"{var_config['widget_short_name']} (см)"
         return f"{var_config['widget_short_name']} ({var_config['units']})"
 
     def read_climatology_data(self):
@@ -943,20 +946,37 @@ class SnowMapDashboard(param.Parameterized):
         
         # Extract columns for the selected variable
         variable = self.climatology_variable
-        q5_col = f'Q5_{variable}'
-        q50_col = f'Q50_{variable}'
-        q95_col = f'Q95_{variable}'
+        variable_upper = variable.upper()  # Use uppercase for column names
+        self.logger.debug(f"Creating climatology plot for variable: {variable}")
+        self.logger.debug(f"DataFrame columns: {df.columns.tolist()}")
+        q5_col = f'Q5_{variable_upper}'
+        q50_col = f'Q50_{variable_upper}'
+        q95_col = f'Q95_{variable_upper}'
         
         if not all(col in df.columns for col in [q5_col, q50_col, q95_col]):
             return hv.Text(0, 0, f"Error: Required columns for {variable} not found in data")
         
-        # Get variable label and units
+        # Define default names for fallback
         var_labels = {
             'SWE': _('Snow Water Equivalent (mm)'),
-            'HS': _('Snow Height (m)'),
-            'ROF': _('Runoff (mm/day)')
+            'HS': _('Snow Height (cm)'),
+            'ROF': _('Runoff (mm)')
         }
-        title = var_labels.get(variable, variable)
+
+        # Get variable labels from config if available
+        if variable in self.config['variables']:
+            long_name = self.config['variables'][variable].get('figure_title', var_labels.get(variable, variable))
+            unit = self.config['variables'][variable].get('units', 'mm')
+            # Special case for hs and convert_to_cm True
+            if variable.lower() == 'hs' and self.config['variables'][variable].get('convert_to_cm', False):
+                unit = 'см'  # cm in Russian
+            title = f"{long_name} ({unit})"
+            title_roc = f"{long_name} ({unit}/день)"  # Rate of change title
+        else:
+            title = var_labels.get(variable, variable)
+            title_roc = f"{title} (Rate of Change)"
+
+        self.logger.debug(f"Creating climatology plot for {variable} with title: {title}")
         
         # Convert date to datetime if needed
         if not pd.api.types.is_datetime64_any_dtype(df['date']):
@@ -1019,11 +1039,11 @@ class SnowMapDashboard(param.Parameterized):
         )
         
         climatology_plot = (avg_shaded_area * median_line * previous_line * current_line * forecast_line).opts(
-            #xlabel='date',
+            xlabel='',
             ylabel=title,
             toolbar='above',
             tools=['hover'],
-            title=f"{title} - Climatology",
+            title=f"{title} - {_('Climatology')}",
             fontsize={'title': 14, 'labels': 12, 'xticks': 10, 'yticks': 10}, 
             hooks=[remove_bokeh_logo],
             xformatter=DatetimeTickFormatter(
@@ -1047,7 +1067,7 @@ class SnowMapDashboard(param.Parameterized):
             y=f'{q50_col}_rate_of_change',
             color=BASE_COLOR_VLIGHT,
             line_width=2,
-            label=_('Historical range (5% - 95%)')
+            label=_('Median (50%)')
         )
         
         previous_rate_of_change = dfp.hvplot.line(
@@ -1074,9 +1094,11 @@ class SnowMapDashboard(param.Parameterized):
             line_dash='dashed',
             label=_('Forecast')
         )
-
+        _('Rate of Change')  # Translation key for rate of change title
         rate_of_change_plot = (climate_rate_of_change * previous_rate_of_change * current_rate_of_change * forecast_rate_of_change).opts(
-            ylabel=_('Rate of Change'),
+            xlabel='', 
+            ylabel=title_roc,
+            title=f"{title} - {_('Rate of Change')}",
             toolbar='above',
             tools=['hover'],
             fontsize={'title': 14, 'labels': 12, 'xticks': 10, 'yticks': 10},
@@ -1090,7 +1112,7 @@ class SnowMapDashboard(param.Parameterized):
             show_legend=True,
             legend_position='right',
             legend_opts={
-                'location': 'center',
+                'location': 'left',
                 'label_standoff': 10  # distance between labels and legend edge
             },
             min_width=400, 
@@ -1259,11 +1281,10 @@ map_controls = pn.bind(get_control_panel, dashboard.param.variable)
 climatology_var_selector = pn.widgets.Select(
     name=_('Variable'),
     options={
-        _('Snow Water Equivalent'): 'SWE',
-        _('Snow Height'): 'HS',
-        _('Snowmelt & excess rain'): 'ROF'
+        dashboard.get_variable_label(var): var
+        for var in dashboard.config['variables']
     },
-    value='SWE'
+    value=dashboard.climatology_variable
 )
 
 # Link selector to dashboard
@@ -1338,7 +1359,7 @@ template.config.raw_css.append("""
     max-height: 100vh; /* Set max height to 100% of viewport height */
     overflow: hidden;  /* Hide overflow */
 }
-
+                               
 .main-content {
     height: calc(100vh - 50px);
     width: 100%;
@@ -1367,7 +1388,7 @@ template.config.raw_css.append("""
 def historical_data_indicator(historical_date):
     if historical_date:
         return pn.pane.Alert(
-            f"⚠️ Viewing historical demo data from {historical_date}. This is not current operational data.",
+            _("⚠️ Viewing historical demo data from %(date)s. This is not current operational data.") % {"date": historical_date},
             alert_type='warning',
             sizing_mode='stretch_width'
         )
@@ -1424,8 +1445,8 @@ climatology_tab = pn.Column(
     css_classes=['main-content']
 )
 info_tab = pn.Column(
-    pn.pane.Markdown("## About Snow Monitoring"),
-    pn.pane.Markdown("""
+    pn.pane.Markdown(_("## About the SnowMapper Dashboard")),
+    pn.pane.Markdown(_("""
     This dashboard shows snow conditions in Zhabay basin in Northern Kazakhstan. 
                      
     The displayed data is based on simulation results from the [SnowMapper](https://github.com/joelfiddes/snowmapperForecast) model developed by the Swiss Research Institute for Snow and Avalanches. 
@@ -1437,15 +1458,15 @@ info_tab = pn.Column(
     This dashboard was developed with funding by the Swiss Federal Agency for Development and Cooperation (SDC) under the project SAPPHIRE Central Asia. 
                      
     The dashboard was inspired by the snowmapps of the platform whiterisk ([https://whiterisk.ch/en/conditions/snow-maps/new_snow](https://whiterisk.ch/en/conditions/snow-maps/new_snow)).
-    """),
+    """)),
     sizing_mode='stretch_both',
     margin=20
 )
 # Create tabs
 tabs = pn.Tabs(
-    ('Map', map_tab),
-    ('Climatology', climatology_tab),
-    ('Info', info_tab),
+    (_('Map'), map_tab),
+    (_('Climatology'), climatology_tab),
+    (_('Info'), info_tab),
     sizing_mode='stretch_both',
 )
 
@@ -1539,7 +1560,8 @@ template.header.append(
     pn.Row(
         header,
         #info_button,
-        sizing_mode='stretch_width'
+        sizing_mode='stretch_width', 
+        align='center'
     )
 )
 

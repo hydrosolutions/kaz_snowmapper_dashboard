@@ -64,6 +64,39 @@ Copy the .pem file to the server running the snowmapperForecast model operationa
 #### Configure language settings
 The dashboard is currently configured to display strings in Russian language. However, you can change to English by editing the `default_language` variable in the `config/config.base.yaml` file and by editing the `figure_title` and `units` variables in the same file.
 
+How to add translations for other languages:   
+
+1. Edit the `config/config.base.yaml` file and add a new language to the `languages` list. Change the `default_language` variable to the new language.  
+
+2. Create a new folder in `locales` with the name of the new language (e.g. `kk` for Kazakh).  
+   
+3.  In the project root, Extract all translatable strings from the code into the POT file:   
+   
+```bash
+xgettext -o locales/messages.pot dashboard/snowmapper.py
+```
+
+4. Update the PO file for the new language (here for example Russian):  
+
+```bash
+msgmerge -U locales/ru/LC_MESSAGES/snowmapper.po locales/messages.pot
+```
+
+Or create a new PO file for the new language:  
+
+```bash
+msginit -i locales/messages.pot -o locales/ru/LC_MESSAGES/snowmapper.po -l ru
+```
+
+5. Translate the strings in the PO file using a text editor or a translation tool.
+
+6. Compile the PO file to MO file:  
+
+```bash
+msgfmt -o locales/ru/LC_MESSAGES/snowmapper.mo locales/ru/LC_MESSAGES/snowmapper.po
+```
+
+
 #### Pull and test-run the docker containers
 This GitHub repository uses GitHub Actions to build docker containers and to upload them to DockerHub. To deploy the dashboard, you can now simply run a bash script that pulls the processing docker image and runs it in a container. From the root directory of the repository, run the following command:
 ```bash

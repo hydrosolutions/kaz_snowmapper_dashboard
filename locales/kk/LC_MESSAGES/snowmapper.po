@@ -1,23 +1,20 @@
-# English translations for PACKAGE package.
-# Copyright (C) 2024 THE PACKAGE'S COPYRIGHT HOLDER
+# Kazakh translations for PACKAGE package.
+# Copyright (C) 2025 THE PACKAGE'S COPYRIGHT HOLDER
 # This file is distributed under the same license as the PACKAGE package.
-# Beatrice Marti <dummy@dummy.com>, 2024.
+# Beatrice Marti <marti@hydrosolutions.ch>, 2025.
 #
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-05-27 13:18+0200\n"
-"PO-Revision-Date: 2024-12-04 23:52+0100\n"
-"Last-Translator: Beatrice Marti <dummy@dummy.com>\n"
-"Language-Team: English\n"
-"Language: en\n"
+"PO-Revision-Date: 2025-05-27 13:22+0200\n"
+"Last-Translator: Beatrice Marti <marti@hydrosolutions.ch>\n"
+"Language-Team: Kazakh <(nothing)>\n"
+"Language: kk\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
-"X-Language: en_CH\n"
-"X-Source-Language: en\n"
 
 #: dashboard/snowmapper.py:961
 msgid "Snow Water Equivalent (mm)"
@@ -62,47 +59,45 @@ msgstr ""
 
 #: dashboard/snowmapper.py:1219 dashboard/snowmapper.py:1300
 msgid "Variable"
-msgstr "Variable"
+msgstr ""
 
 #: dashboard/snowmapper.py:1229
 msgid "Data Type"
-msgstr "Data Type"
+msgstr ""
 
 #: dashboard/snowmapper.py:1250
 msgid "Base Map"
-msgstr "Base Map"
+msgstr ""
 
 #: dashboard/snowmapper.py:1256
 msgid "Layer Opacity"
-msgstr "Layer Opacity"
+msgstr ""
 
 #: dashboard/snowmapper.py:1276
 msgid "### Map Controls"
-msgstr "### Map Controls"
+msgstr ""
 
 #: dashboard/snowmapper.py:1280
 msgid "Select base map"
-msgstr "Select base map"
+msgstr ""
 
 #: dashboard/snowmapper.py:1287
 msgid "### Variable Controls"
-msgstr "### Variable Controls"
+msgstr ""
 
 #: dashboard/snowmapper.py:1331
-#, fuzzy
 msgid "### Climatology Controls"
-msgstr "### Variable Controls"
+msgstr ""
 
 #: dashboard/snowmapper.py:1337
 msgid "Snow Situation Kazakhstan"
-msgstr "Snow Situation Kazakhstan"
+msgstr ""
 
 #: dashboard/snowmapper.py:1529
 msgid "Language"
 msgstr ""
 
 #: dashboard/snowmapper.py:1569
-#, fuzzy
 msgid ""
 "\n"
 "    ### About this Dashboard\n"
@@ -118,23 +113,9 @@ msgid ""
 "'Snow situation' data type.\n"
 "\n"
 "    This dashboard is inspired by the snowmapps of the plattform whiterisk "
-"([https://whiterisk.ch/en/conditions/snow-maps/new_snow](https://whiterisk.ch/en/conditions/snow-maps/new_snow)). "
-"                   \n"
+"([https://whiterisk.ch/en/conditions/snow-maps/new_snow](https://whiterisk."
+"ch/en/conditions/snow-maps/new_snow)).                    \n"
 "    \n"
 "    [Close]\n"
 "    "
 msgstr ""
-"\n"
-"    ### About this Dashboard\n"
-"    This dashboard shows the snow situation in Kazakhstan.\n"
-"    Data is updated daily and includes:\n"
-"    - Snow Height (HS) in meters\n"
-"    - Snow Water Equivalent (SWE) in millimeters\n"
-"\n"
-"    To view daily accumulated forecasts of new snow, select the 'New snow' "
-"data type.\n"
-"    To view the simulated snow situation (past and forecast), select the "
-"'Snow situation' data type.\n"
-"\n"
-"    [Close]\n"
-"    "

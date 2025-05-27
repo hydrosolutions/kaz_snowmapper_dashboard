@@ -41,11 +41,6 @@ climatology:
   current_file: "2.0_current.txt"
   previous_file: "2.0_previous.txt"
 
-variables:
-  - hs
-  - swe
-  - rof
-
 # Configuring the data smoothing and upscaling
 visualization:
   # Thresholds for the data, neglecting values below these thresholds
@@ -106,7 +101,7 @@ variables:
     max_value: 200
   rof:
     name: "runoff"
-    figure_title: "Snow melt & excess rain"
+    figure_title: "Таяние снега и избыточные осадки"
     file_prefix: "ROF"
     widget_short_name: "SMER"
     units: "мм"
@@ -120,6 +115,10 @@ variables:
 # Dashboard settings
 dashboard:
   update_interval: 300  # seconds
+  available_languages: 
+    - "en"
+    - "ru"
+    - "kk"
   default_language: "ru"
   default_opacity: 0.7
   tile_provider: "OpenStreetMap"
