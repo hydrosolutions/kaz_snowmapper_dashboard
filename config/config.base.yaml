@@ -107,8 +107,8 @@ variables:
     units: "мм"
     colormap: "YlOrRd"
     color_levels: [0.02, 10, 15, 20, 25, 30, 50, 100, 200]  # in mm
-    new_rof_color_levels: [0.02, 10, 15, 20, 25, 30, 50, 100, 200]  # in mm
-    new_rof_colormap: ['#cdffcd', '#99f0b2', '#53bd9f', '#3296b4', '#0670b0', '#054f8c', '#610432', '#4d020f']
+    new_snow_color_levels: [0.02, 10, 15, 20, 25, 30, 50, 100, 200]  # in mm
+    new_snow_colormap: ['#cdffcd', '#99f0b2', '#53bd9f', '#3296b4', '#0670b0', '#054f8c', '#610432', '#4d020f']
     min_value: 0
     max_value: 4
 
