@@ -67,7 +67,7 @@ schedule==1.2.2
 seaborn==0.13.2
 six==1.17.0
 toolz==1.0.0
-tornado==6.4.2
+tornado==6.5
 tqdm==4.67.1
 typing_extensions==4.13.2
 tzdata==2025.2
