@@ -23,7 +23,7 @@ cycler==0.12.1
 Deprecated==1.2.18
 donfig==0.8.1.post1
 fasteners==0.19
-fonttools==4.57.0
+fonttools==4.61.0
 fsspec==2025.3.2
 idna==3.10
 importlib_metadata==8.6.1
