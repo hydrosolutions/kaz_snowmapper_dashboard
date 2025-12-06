@@ -3,7 +3,7 @@
 # Import base configuration
 imports:
   - config.base.yaml
-
+ 
 # Paths are relative to the project root directory
 paths:
   input_dir: "../data/input"
