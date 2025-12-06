@@ -60,7 +60,7 @@ pytz==2025.2
 pyviz_comms==3.0.4
 PyYAML==6.0.2
 regionmask==0.13.0
-requests==2.32.3
+requests==2.32.4
 retrying==1.3.4
 s3transfer==0.12.0
 schedule==1.2.2
