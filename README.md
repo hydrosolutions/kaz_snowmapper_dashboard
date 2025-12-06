@@ -126,4 +126,27 @@ And add the following line to the crontab file to periodically restart the web i
 9 22 * * * docker restart kaz-snowmapper-dashboard >> ~/kaz_snowmapper_dashboard/logs/crontab_dashboard.log 2>&1
 ```
 
+## Development instructions
+
+### Install dependencies
+Install the required dependencies for dashboard & the data processor and create the conda environment. Note that we use conda to install the core geospatial libraries and their dependencies. From the project root, run: 
+```bash
+conda env create -f requirements.yml
+```
+Then activate the conda environment with: 
+```bash
+conda activate mcass_kaz
+```
+
+### Run the data processor
+To run the data processor, from the project root, run:
+```bash
+python processing/data_processor.py
+```
+
+### Run the web interface
+To run the web interface, from the project root, run:
+```bash
+panel serve dashboard/snowmapper.py --show
+```
 
