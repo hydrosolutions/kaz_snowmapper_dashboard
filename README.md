@@ -1,7 +1,7 @@
 ![deploy kaz.snowmapper.ch dashboard](https://github.com/hydrosolutions/kaz_snowmapper_dashboard/actions/workflows/docker-build-push.yml/badge.svg) [![License](https://img.shields.io/github/license/hydrosolutions/kaz_snowmapper_dashboard)](https://github.com/hydrosolutions/kaz_snowmapper_dashboard/blob/main/LICENSE) [![Python 3.12](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/release/python-311/) [![Last Commit](https://img.shields.io/github/last-commit/hydrosolutions/kaz_snowmapper_dashboard)](https://github.com/hydrosolutions/kaz_snowmapper_dashboard/commits/main)
 
 ## Snowmapper Kazakhstan Dashboard
-This repository contains the code for the snowmapper Kazakhstan dashboard, currently available under [kaz.snowmapper.ch](https://kaz.snowmapper.ch/snowmapper). The dashboard is a web application that displays snow cover data for Kazakhstan. The data is sourced from the [snowmapperForecast](https://github.com/joelfiddes/snowmapperForecast) model implemented by [Joel Fiddes]([@joelfiddes](https://github.com/joelfiddes)).
+This repository contains the code for the snowmapper Kazakhstan dashboard, temporarily available under kaz.snowmapper.ch. The dashboard is a web application that displays snow cover data for Kazakhstan. The data is sourced from the [snowmapperForecast](https://github.com/joelfiddes/snowmapperForecast) model implemented by [Joel Fiddes]([@joelfiddes](https://github.com/joelfiddes)).
 
 Below we show a screenshot of the dashboard displaying a forecast of snow heigth:
 
