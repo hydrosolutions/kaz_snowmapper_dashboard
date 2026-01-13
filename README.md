@@ -7,6 +7,12 @@ Below we show a screenshot of the dashboard displaying a forecast of snow heigth
 
 ![screenshot](static/Screenshot_kazsnowmapper.png)
 
+## Maintenance Status
+🟡 **Maintenance Mode**
+
+This project has concluded. Security updates are provided as needed.
+For questions, please [open an issue](../../issues).
+
 ## Architecture
 This project comes in 2 components: A data processor and a web interface. The data processor is a python script that downloads the latest snow data from the TopoPyScale and FSM model and, after pre-processing, stores it in local files optimized for display. The web interface is a dashboard that displays the snow-related data on a map. Both components are run in a docker container.
 
