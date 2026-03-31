@@ -20,8 +20,8 @@ dependencies:
   - matplotlib=3.10.1
   - bokeh=3.7.2 
   - holoviews=1.20.2
-  - geoviews=1.14.0 
-  - panel=1.6.2
+  - geoviews=1.14.0
+  - panel=1.6.2 
   - hvplot=0.11.2
   # Data processing
   - numpy=2.2.5 
