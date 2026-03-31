@@ -33,7 +33,7 @@ kiwisolver==1.4.8
 linkify-it-py==2.0.3
 llvmlite==0.44.0
 locket==1.0.0
-Markdown==3.8
+Markdown==3.8.1
 markdown-it-py==3.0.0
 MarkupSafe==3.0.2
 mdit-py-plugins==0.4.2
