@@ -18,7 +18,7 @@ dependencies:
   - netcdf4=1.7.2
   # Visualization packages
   - matplotlib=3.10.1
-  - bokeh=3.7.2
+  - bokeh=3.7.2 
   - holoviews=1.20.2
   - geoviews=1.14.0
   - panel=1.6.2
